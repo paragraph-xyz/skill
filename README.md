@@ -5,7 +5,7 @@ An [Agent Skill](https://agentskills.io) for the [Paragraph](https://paragraph.c
 ## Install
 
 ```bash
-npx skills add paragraph-xyz/paragraph-cli-skill
+npx skills add paragraph-com/skill
 ```
 
 Or manually copy `SKILL.md` into your agent's skills directory:
@@ -37,7 +37,7 @@ The skill includes working agreements (always use `--json`, never publish withou
 ## Links
 
 - [Paragraph CLI on npm](https://www.npmjs.com/package/@paragraph-com/cli)
-- [Paragraph CLI repo](https://github.com/paragraph-xyz/paragraph-cli)
+- [Paragraph CLI repo](https://github.com/paragraph-com/paragraph-cli)
 - [Paragraph](https://paragraph.com)
 - [Agent Skills standard](https://agentskills.io)
 

@@ -4,7 +4,7 @@ description: Use the Paragraph CLI to manage posts, publications, subscribers, a
 license: MIT
 compatibility: Requires Node.js 18+ and npm. Install the CLI with `npm install -g @paragraph-com/cli`.
 metadata:
-  author: paragraph-xyz
+  author: paragraph-com
   version: "1.0"
 allowed-tools: Bash(paragraph:*) Read
 ---
