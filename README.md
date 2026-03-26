@@ -5,7 +5,7 @@ An [Agent Skill](https://agentskills.io) for the [Paragraph](https://paragraph.c
 ## Install
 
 ```bash
-npx skills add paragraph-com/skill
+npx skills add paragraph-xyz/skill
 ```
 
 Or manually copy `SKILL.md` into your agent's skills directory:
