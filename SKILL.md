@@ -56,6 +56,7 @@ Verify: `paragraph whoami --json`
 ```bash
 # Create a draft
 paragraph post create --title "My Post" --file ./post.md --tags "web3,defi" --json
+paragraph post create --title "My Post" --text "# Hello World" --subtitle "A subtitle" --json
 cat content.md | paragraph post create --title "My Post" --json
 
 # List
@@ -73,6 +74,7 @@ paragraph post get --id <post-id> --field title
 
 # Update
 paragraph post update --id <id-or-slug> --title "New Title" --json
+paragraph post update --id <id-or-slug> --text "Updated content" --subtitle "New subtitle" --json
 paragraph post update --id <id-or-slug> --file ./updated.md --tags "new,tags" --json
 
 # Publish
