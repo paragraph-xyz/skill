@@ -13,7 +13,19 @@ allowed-tools: Bash(paragraph:*) Read
 
 CLI for [Paragraph](https://paragraph.com) — a web3 publishing and newsletter platform. Use it to manage posts, publications, subscribers, and coins.
 
-## Setup
+## MCP Server (recommended for MCP-compatible clients)
+
+If your client supports [MCP](https://modelcontextprotocol.io), use the Paragraph MCP server instead of the CLI for a more integrated experience:
+
+```bash
+npx @paragraph-com/mcp
+```
+
+Setup: `claude mcp add paragraph -- npx @paragraph-com/mcp`
+
+The MCP server exposes 25+ tools (posts, publications, subscribers, coins, search, feed, users) and shares authentication with the CLI. See [full docs](https://paragraph.com/docs/development/mcp).
+
+## CLI Setup
 
 Install globally:
 
