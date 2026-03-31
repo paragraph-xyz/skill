@@ -16,6 +16,14 @@ Or manually copy `SKILL.md` into your agent's skills directory:
 | Cursor | `.cursor/skills/paragraph-cli/SKILL.md` |
 | Any agent | Check your agent's skill directory |
 
+## MCP Server
+
+For MCP-compatible clients, you can also use the hosted Paragraph MCP server — no CLI or API key required:
+
+```bash
+claude mcp add paragraph --transport http https://mcp.paragraph.com/mcp
+```
+
 ## Prerequisites
 
 - [Node.js](https://nodejs.org) 18+

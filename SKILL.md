@@ -15,15 +15,29 @@ CLI for [Paragraph](https://paragraph.com) — a web3 publishing and newsletter 
 
 ## MCP Server (recommended for MCP-compatible clients)
 
-If your client supports [MCP](https://modelcontextprotocol.io), use the Paragraph MCP server instead of the CLI for a more integrated experience:
+If your client supports [MCP](https://modelcontextprotocol.io), use the Paragraph MCP server instead of the CLI for a more integrated experience.
+
+### Remote server (recommended)
+
+Use the hosted server at `mcp.paragraph.com` — no installation or API key management required. Authenticates via your Paragraph account in the browser.
 
 ```bash
-npx @paragraph-com/mcp
+claude mcp add paragraph --transport http https://mcp.paragraph.com/mcp
 ```
 
-Setup: `claude mcp add paragraph -- npx @paragraph-com/mcp`
+For other clients, add `https://mcp.paragraph.com/mcp` as a server URL in your MCP configuration.
 
-The MCP server exposes 25+ tools (posts, publications, subscribers, coins, search, feed, users) and shares authentication with the CLI. See [full docs](https://paragraph.com/docs/development/mcp).
+### Local server
+
+If you prefer to run the server locally (requires Node.js 18+):
+
+```bash
+claude mcp add paragraph -- npx @paragraph-com/mcp
+```
+
+Local mode requires an API key via `PARAGRAPH_API_KEY` env var or `paragraph login` from the CLI.
+
+The MCP server exposes 18 tools (posts, publications, subscribers, coins, search, feed, users) and shares authentication with the CLI. See [full docs](https://paragraph.com/docs/development/mcp).
 
 ## CLI Setup
 
