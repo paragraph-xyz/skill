@@ -1,17 +1,19 @@
 ---
 name: paragraph-cli
-description: Use the Paragraph CLI to manage posts, publications, subscribers, and coins on paragraph.com. Trigger when the user asks to publish, create, update, or manage newsletter content on Paragraph.
+description: Use the Paragraph CLI and MCP server to manage posts, publications, subscribers, and coins on paragraph.com. Trigger when the user asks to publish, create, update, or manage newsletter content on Paragraph via CLI or MCP.
 license: MIT
 compatibility: Requires Node.js 18+ and npm. Install the CLI with `npm install -g @paragraph-com/cli`.
 metadata:
   author: paragraph-com
   version: "1.0"
-allowed-tools: Bash(paragraph:*) Read
+allowed-tools: Bash(paragraph:*) Bash(echo:*) Bash(cat:*) Bash(jq:*) Read
 ---
 
 # Paragraph CLI
 
 CLI for [Paragraph](https://paragraph.com) — a web3 publishing and newsletter platform. Use it to manage posts, publications, subscribers, and coins.
+
+For direct HTTP or SDK access without installing anything, see the **paragraph-api** skill instead.
 
 ## MCP Server (recommended for MCP-compatible clients)
 
@@ -139,6 +141,7 @@ paragraph publication get --id <slug-or-id-or-domain> --json
 ```bash
 paragraph search post --query "ethereum" --json
 paragraph search blog --query "web3" --json
+paragraph search coin --query "ethereum" --json
 ```
 
 ### Subscribers
