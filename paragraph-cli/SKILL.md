@@ -150,6 +150,7 @@ paragraph search coin --query "ethereum" --json
 paragraph subscriber list --limit 100 --json
 paragraph subscriber count --publication <id> --json
 paragraph subscriber add --email user@example.com --json
+paragraph subscriber add --wallet 0x1234...abcd --json
 paragraph subscriber import --csv ./subscribers.csv --json
 ```
 
