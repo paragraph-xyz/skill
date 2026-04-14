@@ -76,6 +76,7 @@ Verify: `paragraph whoami --json`
 - **Check auth before running commands.** Run `paragraph whoami --json` to verify credentials are valid.
 - **Do not publish without explicit user approval.** Publishing sends content live and optionally emails subscribers.
 - **Default to draft.** `post create` creates drafts. Only call `post publish` when the user asks.
+- **Respect rate limits.** If you get `RATE_LIMITED`, wait and retry. Avoid tight loops between paginated requests.
 
 ## Commands
 
@@ -90,6 +91,7 @@ cat content.md | paragraph post create --title "My Post" --json
 # List
 paragraph post list --json
 paragraph post list --status draft --limit 20 --json
+paragraph post list --status scheduled --json
 paragraph post list --publication <slug-or-id> --json
 
 # Get (by ID, URL, or @pub/slug)
@@ -114,6 +116,16 @@ paragraph post draft --id <id-or-slug> --json
 
 # Archive
 paragraph post archive --id <id-or-slug> --json
+
+# Schedule a post for future publication
+paragraph post schedule --id <id-or-slug> --at "2026-05-01T09:00:00Z" --json
+paragraph post schedule --id <id-or-slug> --at "2026-05-01T09:00:00Z" --newsletter --json
+
+# Cancel a scheduled publication
+paragraph post unschedule --id <id-or-slug> --json
+
+# Create and schedule in one step
+paragraph post create --title "Launch Day" --file ./post.md --schedule-at "2026-05-01T09:00:00Z" --newsletter --json
 
 # Preview destructive actions
 paragraph post delete --id <id-or-slug> --dry-run --json
@@ -141,7 +153,6 @@ paragraph publication get --id <slug-or-id-or-domain> --json
 ```bash
 paragraph search post --query "ethereum" --json
 paragraph search blog --query "web3" --json
-paragraph search coin --query "ethereum" --json
 ```
 
 ### Subscribers
@@ -181,7 +192,7 @@ paragraph logout
 
 ## JSON response shapes
 
-Paginated list:
+Paginated list (note: the CLI wraps items under `data`; the REST API and SDK use `items` instead):
 ```json
 {
   "data": [{ "id": "...", "title": "..." }],

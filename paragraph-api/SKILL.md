@@ -99,6 +99,21 @@ await api.posts.update({ slug: "my-post", status: "published" });
 // Publish (set status to "published", optionally email subscribers)
 await api.posts.update({ id: "<post-id>", status: "published", sendNewsletter: true });
 
+// Schedule a post for future publication
+const scheduled = await api.posts.create({
+  title: "Launch Day",
+  markdown: "# Launching tomorrow!",
+  scheduledAt: Date.now() + 24 * 60 * 60 * 1000,
+  sendNewsletter: true,
+});
+// scheduled.status === "scheduled"
+
+// Schedule an existing draft
+await api.posts.update({ id: "<post-id>", scheduledAt: Date.now() + 86400000 });
+
+// Cancel a scheduled publication
+await api.posts.update({ id: "<post-id>", scheduledAt: null });
+
 // Delete (by ID or by slug)
 await api.posts.delete({ id: "<post-id>" });
 await api.posts.delete({ slug: "my-post" });
@@ -286,6 +301,24 @@ curl -X DELETE https://public.api.paragraph.com/api/v1/posts/<post-id> \
 curl -X DELETE https://public.api.paragraph.com/api/v1/posts/slug/<slug> \
   -H "Authorization: Bearer <api-key>"
 
+# Schedule a post for future publication (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/posts \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Launch Day", "markdown": "# Launching!", "scheduledAt": 1746090000000, "sendNewsletter": true}'
+
+# Schedule an existing draft (requires auth)
+curl -X PUT https://public.api.paragraph.com/api/v1/posts/<post-id> \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"scheduledAt": 1746090000000}'
+
+# Cancel a scheduled publication (requires auth)
+curl -X PUT https://public.api.paragraph.com/api/v1/posts/<post-id> \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"scheduledAt": null}'
+
 # Send test newsletter email
 curl -X POST https://public.api.paragraph.com/api/v1/posts/<post-id>/test-email \
   -H "Authorization: Bearer <api-key>"
@@ -381,7 +414,7 @@ curl https://public.api.paragraph.com/api/v1/me \
 
 ## JSON response shapes
 
-Paginated list:
+Paginated list (note: the REST API and SDK wrap items under `items`; the CLI uses `data` instead):
 ```json
 {
   "items": [{ "id": "...", "title": "..." }],
@@ -463,7 +496,8 @@ do {
 | postPreview | string | No | Preview text |
 | categories | string[] | No | Tags/categories |
 | status | string | No | `published`, `draft`, or `archived` |
-| sendNewsletter | boolean | No | Email all subscribers on publish |
+| sendNewsletter | boolean | No | Email all subscribers on publish. Default: false |
+| scheduledAt | number\|null | No | Unix ms timestamp to schedule first-publish. `null` to cancel. Max 30 days out |
 
 ## Links
 
