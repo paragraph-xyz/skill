@@ -493,7 +493,7 @@ do {
 | subtitle | string | No | Brief summary |
 | imageUrl | string | No | Cover image URL |
 | slug | string | No | Custom URL slug |
-| postPreview | string | No | Preview text |
+| postPreview | string | No | Preview text (meta description). Keep under 145 chars so it renders without truncation in Google, X, and Farcaster link previews |
 | categories | string[] | No | Tags/categories |
 | status | string | No | `published`, `draft`, or `archived` |
 | sendNewsletter | boolean | No | Email all subscribers on publish. Default: false |
