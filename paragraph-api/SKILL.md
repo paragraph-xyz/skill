@@ -114,6 +114,12 @@ await api.posts.update({ id: "<post-id>", scheduledAt: Date.now() + 86400000 });
 // Cancel a scheduled publication
 await api.posts.update({ id: "<post-id>", scheduledAt: null });
 
+// Backdate a post — publishedAt sticks across re-publishes
+await api.posts.update({
+  id: "<post-id>",
+  publishedAt: new Date("2024-01-01T00:00:00Z").getTime(),
+});
+
 // Delete (by ID or by slug)
 await api.posts.delete({ id: "<post-id>" });
 await api.posts.delete({ slug: "my-post" });
@@ -136,6 +142,44 @@ const pubBySlug = await api.publications.get({ slug: "@my-blog" }).single();
 const pubByDomain = await api.publications.get({ domain: "blog.example.com" }).single();
 ```
 
+Update settings on the publication that owns your API key. Only provided fields change.
+
+```typescript
+const authedApi = new ParagraphAPI({ apiKey: "<api-key>" });
+
+// Name, summary, theme
+await authedApi.publications.update("<publication-id>", {
+  name: "My Blog",
+  summary: "Notes on writing, building, and shipping.",
+  themeColor: "purple-600",
+  headerFont: "serif",
+});
+
+// Featured post — accepts "latest", "popular", "disabled", or a post ID
+// (a specific ID must belong to this publication).
+await authedApi.publications.update("<publication-id>", { featuredPost: "latest" });
+
+// Pinned posts — replaces the existing list, capped at 50 IDs.
+// Each ID must belong to this publication.
+await authedApi.publications.update("<publication-id>", {
+  pinnedPostIds: ["<post-id-1>", "<post-id-2>"],
+});
+
+// Email notifications — merged onto current settings; only the toggles you
+// send are changed.
+await authedApi.publications.update("<publication-id>", {
+  emailNotifications: { newSubscriber: true, newComment: false },
+});
+
+// Comment visibility:
+//   true          → disable all comments
+//   false         → enable comments
+//   "on-platform" → hide on-Paragraph comments, keep Farcaster comments
+await authedApi.publications.update("<publication-id>", {
+  disableComments: "on-platform",
+});
+```
+
 ### Subscribers
 
 ```typescript
@@ -150,6 +194,11 @@ const { count } = await api.subscribers.getCount({ id: "<publication-id>" });
 // Add
 await api.subscribers.create({ email: "user@example.com" });
 await api.subscribers.create({ wallet: "0x1234..." });
+
+// Remove (hard delete — irreversible). At least one of email or wallet
+// must be provided; if you pass both, they must resolve to the same user.
+await api.subscribers.remove({ email: "user@example.com" });
+await api.subscribers.remove({ wallet: "0x1234..." });
 
 // Import CSV
 const file = new File([csvContent], "subscribers.csv", { type: "text/csv" });
@@ -287,6 +336,12 @@ curl -X PUT https://public.api.paragraph.com/api/v1/posts/<post-id> \
   -H "Content-Type: application/json" \
   -d '{"title": "Updated Title", "status": "published", "sendNewsletter": true}'
 
+# Backdate a post (publishedAt sticks across re-publishes)
+curl -X PUT https://public.api.paragraph.com/api/v1/posts/<post-id> \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"publishedAt": 1704067200000}'
+
 # Update by slug (requires auth)
 curl -X PUT https://public.api.paragraph.com/api/v1/posts/slug/<slug> \
   -H "Authorization: Bearer <api-key>" \
@@ -344,6 +399,15 @@ curl https://public.api.paragraph.com/api/v1/publications/domain/<domain>
 
 # Subscriber count
 curl https://public.api.paragraph.com/api/v1/publications/<publication-id>/subscribers/count
+
+# Update settings (requires auth — publicationId must match the API key's publication).
+# Only provided fields are changed. featuredPost accepts "latest" | "popular" |
+# "disabled" | a post ID. pinnedPostIds replaces the existing list (max 50).
+# emailNotifications is merged onto current settings.
+curl -X PATCH https://public.api.paragraph.com/api/v1/publications/<publication-id> \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Blog", "themeColor": "purple-600", "featuredPost": "latest"}'
 ```
 
 ### Subscribers
@@ -355,6 +419,13 @@ curl https://public.api.paragraph.com/api/v1/subscribers?limit=100 \
 
 # Add (requires auth)
 curl -X POST https://public.api.paragraph.com/api/v1/subscribers \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+
+# Remove (requires auth — hard delete, irreversible). Pass email or wallet
+# (or both — both must resolve to the same user).
+curl -X DELETE https://public.api.paragraph.com/api/v1/subscribers \
   -H "Authorization: Bearer <api-key>" \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com"}'
@@ -498,6 +569,7 @@ do {
 | status | string | No | `published`, `draft`, or `archived` |
 | sendNewsletter | boolean | No | Email all subscribers on publish. Default: false |
 | scheduledAt | number\|null | No | Unix ms timestamp to schedule first-publish. `null` to cancel. Max 30 days out |
+| publishedAt | number | No | Unix ms timestamp to set as the post's display publish date. Once set, sticks across re-publishes — useful for backdating imported content |
 
 ## Links
 

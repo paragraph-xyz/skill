@@ -39,7 +39,9 @@ claude mcp add paragraph -- npx @paragraph-com/mcp
 
 Local mode requires an API key via `PARAGRAPH_API_KEY` env var or `paragraph login` from the CLI.
 
-The MCP server exposes 18 tools (posts, publications, subscribers, coins, search, feed, users) and shares authentication with the CLI. See [full docs](https://paragraph.com/docs/development/mcp).
+The MCP server exposes 22 tools (posts, publications, subscribers, coins, search, feed, users, me, analytics) and shares authentication with the CLI. See [full docs](https://paragraph.com/docs/development/mcp).
+
+Notable tools added recently: `update-publication` (settings, featured post, pinned posts, email-notification toggles), `remove-subscriber` (hard delete by email or wallet), and `update-post` now accepts `publishedAt` for backdating.
 
 ## CLI Setup
 
@@ -107,6 +109,9 @@ paragraph post update --id <id-or-slug> --title "New Title" --json
 paragraph post update --id <id-or-slug> --text "Updated content" --subtitle "New subtitle" --json
 paragraph post update --id <id-or-slug> --file ./updated.md --tags "new,tags" --json
 
+# Backdate (publishedAt sticks across re-publishes — useful for imported content)
+paragraph post update --id <id-or-slug> --published-at "2024-01-01T00:00:00Z" --json
+
 # Publish
 paragraph post publish --id <id-or-slug> --json
 paragraph post publish --id <id-or-slug> --newsletter --json
@@ -146,6 +151,27 @@ paragraph post by-tag --tag web3 --limit 20 --json
 
 ```bash
 paragraph publication get --id <slug-or-id-or-domain> --json
+
+# Update settings (only provided fields change). The publication ID must
+# match the publication that owns your API key — run `paragraph whoami` to
+# look it up.
+paragraph publication update <publication-id> --name "My Blog" --theme-color purple-600 --json
+
+# Featured post: a post ID, or one of "latest" | "popular" | "disabled"
+paragraph publication update <publication-id> --featured-post latest --json
+
+# Pinned posts (replaces the existing list, max 50, IDs must belong to this publication)
+paragraph publication update <publication-id> --pinned-post-ids id1,id2,id3 --json
+
+# Comment visibility: true | false | on-platform
+paragraph publication update <publication-id> --disable-comments on-platform --json
+
+# Owner email-notification toggles (key=value pairs).
+# Allowed keys: newComment, newSubscriber, newPaidSubscriber, newContentCollected.
+paragraph publication update <publication-id> --email-notifications newSubscriber=true,newComment=false --json
+
+# Apply a full settings body from a JSON file. Explicit flags override file values.
+paragraph publication update <publication-id> --from-json ./settings.json --json
 ```
 
 ### Search
@@ -163,6 +189,10 @@ paragraph subscriber count --publication <id> --json
 paragraph subscriber add --email user@example.com --json
 paragraph subscriber add --wallet 0x1234...abcd --json
 paragraph subscriber import --csv ./subscribers.csv --json
+
+# Remove (hard delete, irreversible — prompts for confirmation; use --yes to skip)
+paragraph subscriber remove --email user@example.com --yes --json
+paragraph subscriber remove --wallet 0x1234...abcd --yes --json
 ```
 
 ### Coins
@@ -180,6 +210,25 @@ paragraph coin quote --id <id-or-address> --amount <wei> --json
 ```bash
 paragraph user get --id <user-id-or-wallet> --json
 ```
+
+### Analytics
+
+Run read-only SQL against your publication's analytics schema. Scoped automatically to the publication that owns your API key — do not include blog filters in WHERE clauses.
+
+```bash
+# Discover tables and columns
+paragraph analytics schema --json
+paragraph analytics schema --table post_analytics_summary --json
+
+# Run a query
+paragraph analytics query --sql "SELECT title, total_views, open_rate FROM post_analytics_summary ORDER BY total_views DESC LIMIT 5" --json
+
+# Read SQL from a file or stdin
+paragraph analytics query --file ./query.sql --json
+echo "SELECT active_subscriber_count FROM blog_subscriber_counts" | paragraph analytics query --json
+```
+
+Prefer the pre-aggregated views (`post_analytics_summary`, `subscriber_engagement_scores`, `blog_subscriber_counts`) over raw tables — they're sub-second and cover most reporting questions. SELECT/WITH only, no semicolons, max 10,000 rows, 30s statement timeout.
 
 ### Auth
 
