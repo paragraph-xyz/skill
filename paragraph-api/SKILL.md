@@ -50,6 +50,7 @@ const authedApi = new ParagraphAPI({ apiKey: "<api-key>" });
 
 - **Do not publish without explicit user approval.** Publishing sends content live and optionally emails subscribers.
 - **Default to draft.** Created posts are drafts unless `status: "published"` is set explicitly.
+- **Do not send custom emails without explicit user approval.** `api.emails.send` (and `POST /v1/emails/send`) delivers real email and can't be undone. Draft the subject and body first; use `dryRun: true` to preview filtering before a real send. On a `403`, surface "this publication isn't approved for custom email yet" and stop — do not retry.
 - **Paginate with `cursor`.** Responses include `pagination.cursor` and `pagination.hasMore`.
 - **Respect rate limits.** If you get a `429`, back off and retry. Avoid tight loops between paginated requests.
 - **Check auth before writing.** Call `GET /v1/me` or `api.me.get()` to verify credentials are valid.
@@ -262,6 +263,50 @@ const userByWallet = await api.users.get({ wallet: "0x1234..." }).single();
 ```typescript
 const api = new ParagraphAPI({ apiKey: "<api-key>" });
 const myPublication = await api.me.get();
+```
+
+### Custom emails
+
+Send a one-off markdown email from your publication to a specific recipient list you supply. Each recipient gets it individually with a mandatory unsubscribe footer (uses the same delivery pipeline as the newsletter).
+
+**Use this for:**
+- **Targeted segment sends** — "email everyone who opened my last post", "follow-up to my 50 most engaged subscribers", "reach out to this curated list of 20 readers". Build the segment via `api.analytics.query` or `api.subscribers.get`.
+- **Self-notifications to the writer** — "email me when I hit 1,000 subscribers", "weekly analytics digest". Pair with `api.me.get()` if you need to look up the writer's email.
+- **Outreach to non-subscriber addresses** — a CSV of conference contacts, a press list, an intro to friends-of-friends. Recipients can come from anywhere; they don't have to be in `api.subscribers.get()`. (Anyone who previously unsubscribed will still come back as `suppressed`.)
+- **Re-engagement of inactive subscribers** — "email everyone who hasn't opened in 90 days." Identify the segment via `api.analytics.query` against `subscriber_engagement_scores` or `newsletter_metrics`.
+- **Draft review to a few collaborators** — "send this draft pitch to my 3 co-authors for feedback." Use this when you need to email people other than the publication owner; `api.posts.sendTestEmail` only goes to the owner.
+
+**Do NOT use this for newsletter blasts.** To email all subscribers with a post, set `sendNewsletter: true` on `api.posts.create` or `api.posts.update`. That's the newsletter pipeline; `api.emails.send` is for targeted lists you supply.
+
+**Eligibility:** publications must be approved by Paragraph for custom email. Ineligible publications get a `403`.
+
+**Per-recipient filtering** is server-side: malformed addresses come back as `invalid`, prior unsubscribes as `suppressed`, and queue failures as `scheduling_failed` (the only reason that's safe to retry).
+
+**Caps:** up to 10,000 recipients per call.
+
+**Always confirm before sending.** Email goes out for real and can't be undone — draft the subject and body first, then call `send`. Use `dryRun: true` to preview the accepted/skipped split without sending.
+
+```typescript
+const api = new ParagraphAPI({ apiKey: "<api-key>" });
+
+// Send a markdown email to a list of recipients
+const { accepted, skipped } = await api.emails.send({
+  subject: "Hello from Paragraph",
+  body: "# Welcome\n\nThanks for reading.",
+  emails: ["reader@example.com", "another@example.com"],
+});
+console.log(`${accepted} queued, ${skipped.length} skipped`);
+for (const s of skipped) {
+  console.log(`${s.email}: ${s.reason}`);
+}
+
+// Dry run — check filtering without sending
+const preview = await api.emails.send({
+  subject: "Preview",
+  body: "Body here",
+  emails: ["reader@example.com"],
+  dryRun: true,
+});
 ```
 
 ### Auth (browser-based login)
@@ -482,6 +527,47 @@ curl https://public.api.paragraph.com/api/v1/users/wallet/<wallet-address>
 curl https://public.api.paragraph.com/api/v1/me \
   -H "Authorization: Bearer <api-key>"
 ```
+
+### Custom emails
+
+Send a markdown email from your publication to a list of recipients. The publication must be approved by Paragraph; ineligible publications get a `403`. Body is rendered to HTML server-side. Up to 10,000 recipients per call. Always confirm with the user before sending — emails go out for real and can't be undone.
+
+```bash
+# Send (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/emails/send \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": "Hello from Paragraph",
+    "body": "# Welcome\n\nThanks for reading.",
+    "emails": ["reader@example.com", "another@example.com"]
+  }'
+
+# Dry run — preview accepted/skipped without sending
+curl -X POST https://public.api.paragraph.com/api/v1/emails/send \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": "Preview",
+    "body": "Body here",
+    "emails": ["reader@example.com"],
+    "dryRun": true
+  }'
+```
+
+Response shape:
+
+```json
+{
+  "accepted": 2,
+  "skipped": [
+    { "email": "bad@", "reason": "invalid" },
+    { "email": "unsub@example.com", "reason": "suppressed" }
+  ]
+}
+```
+
+`reason` is one of `invalid` (malformed address), `suppressed` (recipient previously unsubscribed from this publication), or `scheduling_failed` (filtering passed but the delivery task could not be queued — the only reason that's safe to retry).
 
 ## JSON response shapes
 

@@ -39,9 +39,9 @@ claude mcp add paragraph -- npx @paragraph-com/mcp
 
 Local mode requires an API key via `PARAGRAPH_API_KEY` env var or `paragraph login` from the CLI.
 
-The MCP server exposes 22 tools (posts, publications, subscribers, coins, search, feed, users, me, analytics) and shares authentication with the CLI. See [full docs](https://paragraph.com/docs/development/mcp).
+The MCP server exposes 23 tools (posts, publications, subscribers, coins, search, feed, users, me, analytics, emails) and shares authentication with the CLI. See [full docs](https://paragraph.com/docs/development/mcp).
 
-Notable tools added recently: `update-publication` (settings, featured post, pinned posts, email-notification toggles), `remove-subscriber` (hard delete by email or wallet), and `update-post` now accepts `publishedAt` for backdating.
+Notable tools added recently: `send-custom-email` (markdown email blast to a recipient list — requires publication approval), `update-publication` (settings, featured post, pinned posts, email-notification toggles), `remove-subscriber` (hard delete by email or wallet), and `update-post` now accepts `publishedAt` for backdating.
 
 ## CLI Setup
 
@@ -78,6 +78,7 @@ Verify: `paragraph whoami --json`
 - **Check auth before running commands.** Run `paragraph whoami --json` to verify credentials are valid.
 - **Do not publish without explicit user approval.** Publishing sends content live and optionally emails subscribers.
 - **Default to draft.** `post create` creates drafts. Only call `post publish` when the user asks.
+- **Do not send custom emails without explicit user approval.** `paragraph email send` delivers real email and can't be undone. Draft the subject and body first; use `--dry-run` to preview filtering before a real send. On a `403`, surface "this publication isn't approved for custom email yet" and stop — do not retry.
 - **Respect rate limits.** If you get `RATE_LIMITED`, wait and retry. Avoid tight loops between paginated requests.
 
 ## Commands
@@ -229,6 +230,40 @@ echo "SELECT active_subscriber_count FROM blog_subscriber_counts" | paragraph an
 ```
 
 Prefer the pre-aggregated views (`post_analytics_summary`, `subscriber_engagement_scores`, `blog_subscriber_counts`) over raw tables — they're sub-second and cover most reporting questions. SELECT/WITH only, no semicolons, max 10,000 rows, 30s statement timeout.
+
+### Custom emails
+
+Send a one-off markdown email from your publication to a specific recipient list you supply. Each recipient gets it individually with a mandatory unsubscribe footer.
+
+**Use this for:**
+- **Targeted segment sends** — "email everyone who opened my last post", "follow-up to my 50 most engaged subscribers", "reach out to this curated list of 20 readers". Build the segment via `paragraph analytics query` or `paragraph subscriber list`.
+- **Self-notifications to the writer** — "email me when I hit 1,000 subscribers", "weekly analytics digest". Use `paragraph whoami` to look up the writer's email if needed.
+- **Outreach to non-subscriber addresses** — a CSV of conference contacts, a press list, an intro to friends-of-friends. Recipients can come from anywhere; they don't have to be in `paragraph subscriber list`. (Anyone who previously unsubscribed will still come back as `suppressed`.)
+- **Re-engagement of inactive subscribers** — "email everyone who hasn't opened in 90 days." Identify the segment via `paragraph analytics query` against `subscriber_engagement_scores` or `newsletter_metrics`.
+- **Draft review to a few collaborators** — "send this draft pitch to my 3 co-authors for feedback." Use this when you need to email people other than the publication owner; `paragraph post test-email` only goes to the owner.
+
+**Do NOT use this for newsletter blasts.** To email all subscribers with a post, use `paragraph post publish --newsletter` (or `paragraph post create ... --newsletter`). That's the newsletter pipeline; `email send` is for targeted lists you supply.
+
+The publication must be approved by Paragraph for custom email; ineligible publications get a `403`. Up to 10,000 recipients per call. Always confirm with the user before sending — emails go out for real and can't be undone.
+
+```bash
+# Send (prompts for confirmation; pass --yes to skip)
+paragraph email send --subject "Hello" --body "# Hi" --to reader@example.com --yes --json
+
+# Read body from a file
+paragraph email send --subject "Update" --body-file ./body.md --to a@x.com --to b@x.com --yes --json
+
+# Comma-separated recipients (--to is repeatable)
+paragraph email send --subject "Update" --body-file ./body.md --to "a@x.com,b@x.com" --yes --json
+
+# Pipe body via stdin
+cat body.md | paragraph email send --subject "Update" --to reader@example.com --yes --json
+
+# Dry run — preview the accepted/skipped split without sending
+paragraph email send --subject "Update" --body "# Hi" --to a@x.com --dry-run --json
+```
+
+The JSON response includes `accepted` (queued for delivery) and `skipped` — each skipped recipient has a `reason`: `invalid` (malformed address), `suppressed` (previously unsubscribed), or `scheduling_failed` (queue failure — the only reason safe to retry).
 
 ### Auth
 
