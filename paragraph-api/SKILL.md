@@ -121,6 +121,15 @@ await api.posts.update({
   publishedAt: new Date("2024-01-01T00:00:00Z").getTime(),
 });
 
+// Set or replace the cover image — the URL is fetched, re-hosted on Paragraph's CDN, and a placeholder is generated
+await api.posts.update({
+  id: "<post-id>",
+  imageUrl: "https://example.com/cover.jpg",
+});
+
+// Remove the existing cover image
+await api.posts.update({ id: "<post-id>", clearImage: true });
+
 // Delete (by ID or by slug)
 await api.posts.delete({ id: "<post-id>" });
 await api.posts.delete({ slug: "my-post" });
@@ -387,6 +396,18 @@ curl -X PUT https://public.api.paragraph.com/api/v1/posts/<post-id> \
   -H "Content-Type: application/json" \
   -d '{"publishedAt": 1704067200000}'
 
+# Set/replace the cover image (URL is fetched + re-hosted on Paragraph's CDN)
+curl -X PUT https://public.api.paragraph.com/api/v1/posts/<post-id> \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"imageUrl": "https://example.com/cover.jpg"}'
+
+# Remove the existing cover image
+curl -X PUT https://public.api.paragraph.com/api/v1/posts/<post-id> \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"clearImage": true}'
+
 # Update by slug (requires auth)
 curl -X PUT https://public.api.paragraph.com/api/v1/posts/slug/<slug> \
   -H "Authorization: Bearer <api-key>" \
@@ -648,7 +669,8 @@ do {
 | title | string | Create only | Post title |
 | markdown | string | Create only | Content in markdown |
 | subtitle | string | No | Brief summary |
-| imageUrl | string | No | Cover image URL |
+| imageUrl | string | No | Cover image URL. Fetched server-side and re-hosted on Paragraph's CDN; a blur placeholder is generated. Valid on both create and update |
+| clearImage | boolean | No | Update only. Set to `true` to remove the existing cover image. Ignored if `imageUrl` is also provided |
 | slug | string | No | Custom URL slug |
 | postPreview | string | No | Preview text (meta description). Keep under 145 chars so it renders without truncation in Google, X, and Farcaster link previews |
 | categories | string[] | No | Tags/categories |

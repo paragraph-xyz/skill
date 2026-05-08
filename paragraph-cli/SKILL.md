@@ -41,7 +41,7 @@ Local mode requires an API key via `PARAGRAPH_API_KEY` env var or `paragraph log
 
 The MCP server exposes 23 tools (posts, publications, subscribers, coins, search, feed, users, me, analytics, emails) and shares authentication with the CLI. See [full docs](https://paragraph.com/docs/development/mcp).
 
-Notable tools added recently: `send-custom-email` (markdown email blast to a recipient list — requires publication approval), `update-publication` (settings, featured post, pinned posts, email-notification toggles), `remove-subscriber` (hard delete by email or wallet), and `update-post` now accepts `publishedAt` for backdating.
+Notable tools added recently: `send-custom-email` (markdown email blast to a recipient list — requires publication approval), `update-publication` (settings, featured post, pinned posts, email-notification toggles), `remove-subscriber` (hard delete by email or wallet), `update-post` accepts `publishedAt` for backdating, and `update-post` accepts `imageUrl` (set/replace the cover image) and `clearImage` (remove the existing cover).
 
 ## CLI Setup
 
@@ -112,6 +112,12 @@ paragraph post update --id <id-or-slug> --file ./updated.md --tags "new,tags" --
 
 # Backdate (publishedAt sticks across re-publishes — useful for imported content)
 paragraph post update --id <id-or-slug> --published-at "2024-01-01T00:00:00Z" --json
+
+# Set/replace cover image (URL is fetched + re-hosted on Paragraph's CDN)
+paragraph post update --id <id-or-slug> --image-url https://example.com/cover.jpg --json
+
+# Remove the existing cover image
+paragraph post update --id <id-or-slug> --clear-image --json
 
 # Publish
 paragraph post publish --id <id-or-slug> --json
