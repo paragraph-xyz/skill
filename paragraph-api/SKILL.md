@@ -1,6 +1,6 @@
 ---
 name: paragraph-api
-description: Use the Paragraph REST API or TypeScript SDK to manage posts, publications, subscribers, and coins on paragraph.com. No installation required — just HTTP requests or `npm install @paragraph-com/sdk`. Trigger when the user asks to integrate with, build on, or call the Paragraph API.
+description: Use the Paragraph REST API or TypeScript SDK to manage posts, drafted content (X posts, LinkedIn posts, newsletters, X Articles), publications, subscribers, and coins on paragraph.com. No installation required — just HTTP requests or `npm install @paragraph-com/sdk`. Trigger when the user asks to integrate with, build on, or call the Paragraph API.
 license: MIT
 metadata:
   author: paragraph-com
@@ -51,6 +51,7 @@ const authedApi = new ParagraphAPI({ apiKey: "<api-key>" });
 - **Do not publish without explicit user approval.** Publishing sends content live and optionally emails subscribers.
 - **Default to draft.** Created posts are drafts unless `status: "published"` is set explicitly.
 - **Do not send custom emails without explicit user approval.** `api.emails.send` (and `POST /v1/emails/send`) delivers real email and can't be undone. Draft the subject and body first; use `dryRun: true` to preview filtering before a real send. On a `403`, surface "this publication isn't approved for custom email yet" and stop — do not retry.
+- **Drafted content never sends.** `api.content` (and `/v1/content`) only writes to the publication's library. Nothing is posted to X or LinkedIn, emailed, or scheduled — the writer sends it from the Paragraph app. Say so rather than implying a piece went out.
 - **Paginate with `cursor`.** Responses include `pagination.cursor` and `pagination.hasMore`.
 - **Respect rate limits.** If you get a `429`, back off and retry. Avoid tight loops between paginated requests.
 - **Check auth before writing.** Call `GET /v1/me` or `api.me.get()` to verify credentials are valid.
@@ -142,6 +143,85 @@ const { items: feed } = await api.feed.get();
 const { items: tagged } = await api.posts.get({ tag: "web3" }, { limit: 10 });
 ```
 
+### Content
+
+The publication's short-form library: X posts and threads, LinkedIn posts, one-off emails, and X Articles. Everything here is a draft — creating or editing a piece never posts, emails, or schedules it. Long-form Paragraph posts are a different resource; use `api.posts` for those.
+
+Kinds are `tweet`, `linkedin`, `newsletter`, and `x_article`. `body` takes the shape its kind uses, validated the same way the Paragraph app validates it. Drafts created through the API are text-only — media has to be uploaded to X or LinkedIn first, which the API can't do yet.
+
+```typescript
+const api = new ParagraphAPI({ apiKey: "<api-key>" });
+
+// Draft an X thread — one entry per tweet, each under 280 characters
+const thread = await api.content.create({
+  kind: "tweet",
+  title: "Thread on writing in public",
+  body: {
+    tweets: [
+      "Writing in public changes what you write.",
+      "Here's what changed for me.",
+    ],
+  },
+});
+
+// Draft a single X post
+await api.content.create({
+  kind: "tweet",
+  title: "Launch note",
+  body: { text: "We shipped it." },
+});
+
+// Draft a LinkedIn post
+await api.content.create({
+  kind: "linkedin",
+  title: "Launch note",
+  body: { text: "We shipped it." },
+});
+
+// Draft a one-off email
+await api.content.create({
+  kind: "newsletter",
+  title: "October update",
+  body: {
+    subject: "What we shipped in October",
+    preheader: "Three things worth your time",
+    body: "Hi everyone,",
+  },
+});
+
+// Draft an X Article — body is CommonMark markdown
+await api.content.create({
+  kind: "x_article",
+  title: "Why we rebuilt the editor",
+  body: {
+    title: "Why we rebuilt the editor",
+    body: "## The old editor\n\nIt fought us.",
+    canonicalUrl: "https://example.com/posts/why-we-rebuilt-the-editor",
+  },
+});
+
+// List the library (newest activity first, bodies not included)
+const { items, pagination } = await api.content.list();
+const { items: drafts } = await api.content.list({ kind: "tweet", status: "draft" });
+
+// Read one piece, with its body — do this before editing
+const piece = await api.content.get({ id: "<content-id>" });
+
+// Edit — body replaces the artifact entirely, so send the whole thing
+await api.content.update({ id: "<content-id>", body: { text: "Rewritten, and shorter." } });
+
+// Rename — always allowed, even when a queued send has locked the words
+await api.content.update({ id: "<content-id>", title: "Launch note, second pass" });
+
+// Archive and restore
+await api.content.archive({ id: "<content-id>" });
+await api.content.restore({ id: "<content-id>" });
+```
+
+`status` on `list` defaults to `all`, which is everything except the pieces you've archived. A piece that was delivered stays listed whether or not it was archived afterwards.
+
+`lockedReason` on a piece explains why it can't be edited right now, or is `null` when it can — a queued or in-flight send locks the words, because they go out exactly as written. Cancel the schedule in the app first.
+
 ### Publications
 
 ```typescript
@@ -179,14 +259,6 @@ await authedApi.publications.update("<publication-id>", {
 // send are changed.
 await authedApi.publications.update("<publication-id>", {
   emailNotifications: { newSubscriber: true, newComment: false },
-});
-
-// Comment visibility:
-//   true          → disable all comments
-//   false         → enable comments
-//   "on-platform" → hide on-Paragraph comments, keep Farcaster comments
-await authedApi.publications.update("<publication-id>", {
-  disableComments: "on-platform",
 });
 ```
 
@@ -450,6 +522,75 @@ curl https://public.api.paragraph.com/api/v1/posts/feed?limit=10
 # Posts by tag
 curl https://public.api.paragraph.com/api/v1/posts/tag/web3?limit=20
 ```
+
+### Content
+
+Drafted X posts, LinkedIn posts, one-off emails, and X Articles. All six endpoints require auth; the API key identifies the publication. Nothing here is sent — the writer sends it from the Paragraph app.
+
+```bash
+# Draft an X thread (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/content \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "kind": "tweet",
+    "title": "Thread on writing in public",
+    "body": {"tweets": ["Writing in public changes what you write.", "Here'"'"'s what changed for me."]}
+  }'
+
+# Draft a LinkedIn post (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/content \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"kind": "linkedin", "title": "Launch note", "body": {"text": "We shipped it."}}'
+
+# Draft a one-off email (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/content \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "kind": "newsletter",
+    "title": "October update",
+    "body": {"subject": "What we shipped in October", "body": "Hi everyone,"}
+  }'
+
+# List the library — filter by kind and status (requires auth)
+curl "https://public.api.paragraph.com/api/v1/content?kind=tweet&status=draft&limit=20" \
+  -H "Authorization: Bearer <api-key>"
+
+# Get one piece, with its body (requires auth)
+curl https://public.api.paragraph.com/api/v1/content/<content-id> \
+  -H "Authorization: Bearer <api-key>"
+
+# Edit — body replaces the artifact entirely (requires auth)
+curl -X PATCH https://public.api.paragraph.com/api/v1/content/<content-id> \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"body": {"text": "Rewritten, and shorter."}}'
+
+# Rename (requires auth)
+curl -X PATCH https://public.api.paragraph.com/api/v1/content/<content-id> \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Launch note, second pass"}'
+
+# Archive and restore (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/content/<content-id>/archive \
+  -H "Authorization: Bearer <api-key>"
+curl -X POST https://public.api.paragraph.com/api/v1/content/<content-id>/restore \
+  -H "Authorization: Bearer <api-key>"
+```
+
+`kind` is `tweet`, `linkedin`, `newsletter`, or `x_article`, and `body` takes the shape its kind uses:
+
+| Kind | body fields |
+|------|-------------|
+| tweet | `text` for a single post, or `tweets` (array, one entry per tweet, each ≤ 280 characters) for a thread — never both |
+| linkedin | `text` |
+| newsletter | `subject`, `body`, optional `preheader` |
+| x_article | `title` (the headline X publishes), `body` as CommonMark markdown, optional `canonicalUrl` |
+
+Sending `body.media` is rejected: media has to be uploaded to X or LinkedIn first, which the API can't do yet. Add images to the draft in the Paragraph app.
 
 ### Publications
 
