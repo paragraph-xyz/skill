@@ -1,6 +1,6 @@
 ---
 name: paragraph-cli
-description: Use the Paragraph CLI and MCP server to manage posts, publications, subscribers, and coins on paragraph.com. Trigger when the user asks to publish, create, update, or manage newsletter content on Paragraph via CLI or MCP.
+description: Use the Paragraph CLI and MCP server to manage posts, drafted content (X posts, LinkedIn posts, newsletters, X Articles), publications, subscribers, and coins on paragraph.com. Trigger when the user asks to publish, create, update, or manage newsletter content on Paragraph via CLI or MCP.
 license: MIT
 compatibility: Requires Node.js 18+ and npm. Install the CLI with `npm install -g @paragraph-com/cli`.
 metadata:
@@ -11,7 +11,7 @@ allowed-tools: Bash(paragraph:*) Bash(echo:*) Bash(cat:*) Bash(jq:*) Read
 
 # Paragraph CLI
 
-CLI for [Paragraph](https://paragraph.com) — a web3 publishing and newsletter platform. Use it to manage posts, publications, subscribers, and coins.
+CLI for [Paragraph](https://paragraph.com) — a web3 publishing and newsletter platform. Use it to manage posts, drafted content, publications, subscribers, and coins.
 
 For direct HTTP or SDK access without installing anything, see the **paragraph-api** skill instead.
 
@@ -39,9 +39,9 @@ claude mcp add paragraph -- npx @paragraph-com/mcp
 
 Local mode requires an API key via `PARAGRAPH_API_KEY` env var or `paragraph login` from the CLI.
 
-The MCP server exposes 23 tools (posts, publications, subscribers, coins, search, feed, users, me, analytics, emails) and shares authentication with the CLI. See [full docs](https://paragraph.com/docs/development/mcp).
+The MCP server exposes 29 tools (posts, content, publications, subscribers, coins, search, feed, users, me, analytics, emails) and shares authentication with the CLI. See [full docs](https://paragraph.com/docs/development/mcp).
 
-Notable tools added recently: `send-custom-email` (markdown email blast to a recipient list — requires publication approval), `update-publication` (settings, featured post, pinned posts, email-notification toggles), `remove-subscriber` (hard delete by email or wallet), `update-post` accepts `publishedAt` for backdating, and `update-post` accepts `imageUrl` (set/replace the cover image) and `clearImage` (remove the existing cover).
+Notable tools added recently: `create-content` / `list-content` / `get-content` / `update-content` / `archive-content` / `restore-content` (drafted X posts, LinkedIn posts, newsletters, and X Articles — these draft only, they never send), `send-custom-email` (markdown email blast to a recipient list — requires publication approval), `update-publication` (settings, featured post, pinned posts, email-notification toggles), `remove-subscriber` (hard delete by email or wallet), `update-post` accepts `publishedAt` for backdating, and `update-post` accepts `imageUrl` (set/replace the cover image) and `clearImage` (remove the existing cover).
 
 ## CLI Setup
 
@@ -78,6 +78,7 @@ Verify: `paragraph whoami --json`
 - **Check auth before running commands.** Run `paragraph whoami --json` to verify credentials are valid.
 - **Do not publish without explicit user approval.** Publishing sends content live and optionally emails subscribers.
 - **Default to draft.** `post create` creates drafts. Only call `post publish` when the user asks.
+- **`content` commands never send.** They only write to the publication's library; the writer sends the piece from the Paragraph app. Don't tell the user something went out.
 - **Do not send custom emails without explicit user approval.** `paragraph email send` delivers real email and can't be undone. Draft the subject and body first; use `--dry-run` to preview filtering before a real send. On a `403`, surface "this publication isn't approved for custom email yet" and stop — do not retry.
 - **Respect rate limits.** If you get `RATE_LIMITED`, wait and retry. Avoid tight loops between paginated requests.
 
@@ -154,6 +155,42 @@ paragraph post feed --limit 10 --json
 paragraph post by-tag --tag web3 --limit 20 --json
 ```
 
+### Content
+
+Drafted short-form content: X posts and threads, LinkedIn posts, one-off emails, and X Articles. These commands only draft — nothing is posted, emailed, or scheduled. Long-form posts are `paragraph post`.
+
+`--kind` is `tweet`, `linkedin`, `newsletter`, or `x_article`, and the body flags follow the kind: `--tweet` (repeatable, one per tweet in a thread) for `tweet`, `--subject` and `--preheader` for `newsletter`, `--headline` and `--canonical-url` for `x_article`. The long text comes from `--text`, `--file`, or stdin. Drafts are text-only; media has to be added in the app.
+
+```bash
+# Create
+paragraph content create --kind tweet --title "Launch note" --text "We shipped it." --json
+paragraph content create --kind tweet --title "Thread" --tweet "First." --tweet "Second." --json
+paragraph content create --kind linkedin --title "Launch note" --file ./post.md --json
+paragraph content create --kind newsletter --title "October update" --subject "What we shipped" --file ./body.md --json
+paragraph content create --kind x_article --title "Editor rewrite" --headline "Why we rebuilt the editor" --file ./article.md --json
+cat post.md | paragraph content create --kind linkedin --title "Launch note" --json
+
+# List (--status defaults to all, which excludes archived pieces)
+paragraph content list --json
+paragraph content list --kind tweet --status draft --limit 50 --json
+paragraph content list --status archived --json
+
+# Get, with its body
+paragraph content get <id> --json
+paragraph content get <id> --field body
+
+# Update — the body is replaced, not merged. Read it first.
+paragraph content update <id> --title "Launch note, second pass" --json
+paragraph content update <id> --text "Rewritten, and shorter." --json
+
+# Archive and restore
+paragraph content archive <id> --dry-run --json
+paragraph content archive <id> --json
+paragraph content restore <id> --json
+```
+
+A piece with a queued send is locked: editing its body is refused (the schedule has to be cancelled in the app), but renaming always works. `lockedReason` in the JSON says why, or is null when the piece is editable.
+
 ### Publications
 
 ```bash
@@ -169,9 +206,6 @@ paragraph publication update <publication-id> --featured-post latest --json
 
 # Pinned posts (replaces the existing list, max 50, IDs must belong to this publication)
 paragraph publication update <publication-id> --pinned-post-ids id1,id2,id3 --json
-
-# Comment visibility: true | false | on-platform
-paragraph publication update <publication-id> --disable-comments on-platform --json
 
 # Owner email-notification toggles (key=value pairs).
 # Allowed keys: newComment, newSubscriber, newPaidSubscriber, newContentCollected.
