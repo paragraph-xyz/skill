@@ -191,6 +191,37 @@ paragraph content restore <id> --json
 
 A piece with a queued send is locked: editing its body is refused (the schedule has to be cancelled in the app), but renaming always works. `lockedReason` in the JSON says why, or is null when the piece is editable.
 
+### Content groups
+
+A group is one identity for a post and everything made out of it — the post, the thread drawn from it, the LinkedIn version, the newsletter. It's what the writer sees as a single stacked row under Content.
+
+**When repurposing a post, group what you draft with it**, or the writer gets unrelated drafts that don't know about each other.
+
+```bash
+# Get or create a post's group. Safe to repeat: the same ID comes back.
+paragraph content bucket create <post-id> --json
+
+# Draft into it
+BUCKET=$(paragraph content bucket create <post-id> --json | jq -r .bucketId)
+paragraph content create --kind tweet --title "Thread" --tweet "First." --bucket "$BUCKET" --json
+
+# Group a draft made before the group existed
+paragraph content update <id> --bucket "$BUCKET" --json
+
+# Read a group and everything already made from its post
+paragraph content bucket get <bucket-id> --json
+
+# Find a post's group without creating one (bucketId is null when there is none)
+paragraph content bucket for-post <post-id> --json
+
+# List every group, most recently active first
+paragraph content bucket list --limit 50 --json
+```
+
+Read the group before drafting so you don't remake a version that already exists. Each member's `kind` says where to read it: `post` with `paragraph post get`, `content` with `paragraph content get`. A `kind` of `other` is a member Paragraph groups but the CLI can't fetch.
+
+A piece already grouped with a different post is refused rather than moved — tell the user to ungroup it in the app. Taking a piece out of a group is done in the app.
+
 ### Publications
 
 ```bash
