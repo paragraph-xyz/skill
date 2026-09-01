@@ -222,6 +222,45 @@ await api.content.restore({ id: "<content-id>" });
 
 `lockedReason` on a piece explains why it can't be edited right now, or is `null` when it can — a queued or in-flight send locks the words, because they go out exactly as written. Cancel the schedule in the app first.
 
+### Content groups
+
+A group is one identity for a post and everything made out of it — the post, the X thread drawn from it, the LinkedIn version, the newsletter. It's what a writer sees as a single stacked row under Content in the Paragraph app.
+
+**When repurposing a post, group what you draft with it.** Seed the group from the post, then pass the id as `bucketId` on every piece derived from it. Without it the writer gets unrelated drafts that don't know about each other.
+
+```typescript
+const api = new ParagraphAPI({ apiKey: "<api-key>" });
+
+// Get or create the post's group. Safe to repeat: the same id comes back.
+const { bucketId } = await api.buckets.createForPost({ postId: "<post-id>" });
+
+// Read it first, so you don't remake something that already exists
+const group = await api.buckets.get({ id: bucketId });
+const channels = new Set(group.members.map((m) => m.channel));
+
+if (!channels.has("tweet")) {
+  await api.content.create({
+    kind: "tweet",
+    title: "Thread on writing in public",
+    body: { tweets: ["Writing in public changes what you write."] },
+    bucketId,
+  });
+}
+
+// Group a draft made before the group existed
+await api.content.update({ id: "<content-id>", bucketId });
+
+// Find a post's group without creating one, or list every group
+const existing = await api.buckets.forPost({ postId: "<post-id>" }); // { bucketId: string | null }
+const { items } = await api.buckets.list({ limit: 20 });
+```
+
+Every piece reports its group as `bucketId` on reads and writes, so you can tell what's grouped without guessing.
+
+Each member's `kind` says where to read it: `post` with `api.posts.get({ id })`, `content` with `api.content.get({ id })`. A `kind` of `other` is a member Paragraph groups but the API can't fetch.
+
+A piece already grouped with a different post is refused with a 409 rather than moved — tell the user to ungroup it in the app. Taking a piece out of a group is done in the app, not through the API.
+
 ### Publications
 
 ```typescript
@@ -591,6 +630,53 @@ curl -X POST https://public.api.paragraph.com/api/v1/content/<content-id>/restor
 | x_article | `title` (the headline X publishes), `body` as CommonMark markdown, optional `canonicalUrl` |
 
 Sending `body.media` is rejected: media has to be uploaded to X or LinkedIn first, which the API can't do yet. Add images to the draft in the Paragraph app.
+
+Unknown fields are rejected rather than ignored, so a misspelled key comes back as a 400 naming it.
+
+### Content groups
+
+A group is one identity for a post and everything made out of it. Seed it from the post, then pass the id as `bucketId` on everything drafted from that post, so the writer sees one stacked row under Content instead of unrelated drafts.
+
+```bash
+# Get or create a post's group. Safe to repeat: the same id comes back. (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/posts/<post-id>/bucket \
+  -H "Authorization: Bearer <api-key>"
+# -> {"bucketId": "<bucket-id>"}
+
+# Draft into it (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/content \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "kind": "tweet",
+    "title": "Thread on writing in public",
+    "body": {"tweets": ["Writing in public changes what you write."]},
+    "bucketId": "<bucket-id>"
+  }'
+
+# Group a draft made before the group existed (requires auth)
+curl -X PATCH https://public.api.paragraph.com/api/v1/content/<content-id> \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"bucketId": "<bucket-id>"}'
+
+# Read a group and everything already made from its post (requires auth)
+curl https://public.api.paragraph.com/api/v1/buckets/<bucket-id> \
+  -H "Authorization: Bearer <api-key>"
+
+# Find a post's group without creating one (requires auth)
+curl https://public.api.paragraph.com/api/v1/posts/<post-id>/bucket \
+  -H "Authorization: Bearer <api-key>"
+# -> {"bucketId": null} when nothing has been made from it yet
+
+# List every group, most recently active first (requires auth)
+curl "https://public.api.paragraph.com/api/v1/buckets?limit=20" \
+  -H "Authorization: Bearer <api-key>"
+```
+
+Each member's `kind` says which endpoint reads it: `post` with `/v1/posts/{id}`, `content` with `/v1/content/{id}`. A `kind` of `other` is a member Paragraph groups but this API can't fetch.
+
+A piece already grouped with a different post is refused with a 409 rather than moved. Taking a piece out of a group is done in the app.
 
 ### Publications
 
