@@ -159,7 +159,7 @@ paragraph post by-tag --tag web3 --limit 20 --json
 
 Drafted short-form content: X posts and threads, LinkedIn posts, one-off emails, and X Articles. These commands only draft — nothing is posted, emailed, or scheduled. Long-form posts are `paragraph post`.
 
-`--kind` is `tweet`, `linkedin`, `newsletter`, or `x_article`, and the body flags follow the kind: `--tweet` (repeatable, one per tweet in a thread) for `tweet`, `--subject` and `--preheader` for `newsletter`, `--headline` and `--canonical-url` for `x_article`. The long text comes from `--text`, `--file`, or stdin. Drafts are text-only; media has to be added in the app.
+`--kind` is `tweet`, `linkedin`, `newsletter`, or `x_article`, and the body flags follow the kind: `--tweet` (repeatable, one per tweet in a thread) for `tweet`, `--subject` and `--preheader` for `newsletter`, `--headline` and `--canonical-url` for `x_article`. The long text comes from `--text`, `--file`, or stdin. X and LinkedIn attachments still need the app. For a rich newsletter, use `--body-json-file <path>` with a complete editor document (or `-` for JSON on stdin), instead of Markdown `--text`/`--file`. Read the saved draft first and preserve its subject, preheader, formatting and media; a Markdown rewrite can lose them. Creating/editing never approves delivery.
 
 ```bash
 # Create
@@ -167,6 +167,7 @@ paragraph content create --kind tweet --title "Launch note" --text "We shipped i
 paragraph content create --kind tweet --title "Thread" --tweet "First." --tweet "Second." --json
 paragraph content create --kind linkedin --title "Launch note" --file ./post.md --json
 paragraph content create --kind newsletter --title "October update" --subject "What we shipped" --file ./body.md --json
+paragraph content create --kind newsletter --title "Rich update" --subject "What we shipped" --body-json-file ./document.json --json
 paragraph content create --kind x_article --title "Editor rewrite" --headline "Why we rebuilt the editor" --file ./article.md --json
 cat post.md | paragraph content create --kind linkedin --title "Launch note" --json
 
@@ -182,6 +183,9 @@ paragraph content get <id> --field body
 # Update — the body is replaced, not merged. Read it first.
 paragraph content update <id> --title "Launch note, second pass" --json
 paragraph content update <id> --text "Rewritten, and shorter." --json
+# Preserve the complete rich document when editing a newsletter (JSON object, not a JSON string)
+paragraph content get <id> --json | jq '.body.bodyJson' > document.json
+paragraph content update <id> --subject "What we shipped" --body-json-file ./document.json --json
 
 # Archive and restore
 paragraph content archive <id> --dry-run --json

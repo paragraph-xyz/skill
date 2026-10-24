@@ -147,7 +147,7 @@ const { items: tagged } = await api.posts.get({ tag: "web3" }, { limit: 10 });
 
 The publication's short-form library: X posts and threads, LinkedIn posts, one-off emails, and X Articles. Everything here is a draft — creating or editing a piece never posts, emails, or schedules it. Long-form Paragraph posts are a different resource; use `api.posts` for those.
 
-Kinds are `tweet`, `linkedin`, `newsletter`, and `x_article`. `body` takes the shape its kind uses, validated the same way the Paragraph app validates it. Drafts created through the API are text-only — media has to be uploaded to X or LinkedIn first, which the API can't do yet.
+Kinds are `tweet`, `linkedin`, `newsletter`, and `x_article`. `body` takes the shape its kind uses, validated the same way the Paragraph app validates it. X and LinkedIn attachments still need the app. Newsletters accept either Markdown `body` or a complete rich `bodyJson` document, never both. Read a saved rich newsletter before editing and preserve its authoritative `bodyJson`; converting it to Markdown can lose formatting and media. The JSON document is an object, unlike the stringified `bodyJson` on the separate posts API. Creating or editing a draft does not approve delivery.
 
 ```typescript
 const api = new ParagraphAPI({ apiKey: "<api-key>" });
@@ -221,6 +221,31 @@ await api.content.restore({ id: "<content-id>" });
 `status` on `list` defaults to `all`, which is everything except the pieces you've archived. A piece that was delivered stays listed whether or not it was archived afterwards.
 
 `lockedReason` on a piece explains why it can't be edited right now, or is `null` when it can — a queued or in-flight send locks the words, because they go out exactly as written. Cancel the schedule in the app first.
+
+### Rich newsletter documents
+
+```ts
+const document = {
+  type: "doc" as const,
+  content: [{ type: "paragraph", content: [{ type: "text", text: "Keep this exact wording.", marks: [{ type: "bold" }] }] }],
+};
+await api.content.create({
+  kind: "newsletter",
+  title: "Product update",
+  body: { subject: "What we shipped", bodyJson: document },
+});
+```
+
+The REST request uses the same object under `body.bodyJson`:
+
+```bash
+curl -X POST https://public.api.paragraph.com/api/v1/content \
+  -H "Authorization: Bearer $PARAGRAPH_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{"kind":"newsletter","title":"Product update","body":{"subject":"What we shipped","bodyJson":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Keep this exact wording.","marks":[{"type":"bold"}]}]}]}}}'
+```
+
+On update, send the complete saved document and subject/preheader, not a partial node or a Markdown rewrite. The server validates supported editor nodes and safe destinations; invalid documents and queued-body edits are refused.
 
 ### Content groups
 
@@ -626,7 +651,7 @@ curl -X POST https://public.api.paragraph.com/api/v1/content/<content-id>/restor
 |------|-------------|
 | tweet | `text` for a single post, or `tweets` (array, one entry per tweet, each ≤ 280 characters) for a thread — never both |
 | linkedin | `text` |
-| newsletter | `subject`, `body`, optional `preheader` |
+| newsletter | `subject`, either Markdown `body` or rich `bodyJson`, optional `preheader` |
 | x_article | `title` (the headline X publishes), `body` as CommonMark markdown, optional `canonicalUrl` |
 
 Sending `body.media` is rejected: media has to be uploaded to X or LinkedIn first, which the API can't do yet. Add images to the draft in the Paragraph app.
