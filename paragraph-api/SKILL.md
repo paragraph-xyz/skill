@@ -1,16 +1,16 @@
 ---
 name: paragraph-api
-description: Use the Paragraph REST API or TypeScript SDK to manage posts, drafted content (X posts, LinkedIn posts, newsletters, X Articles), publications, subscribers, and coins on paragraph.com. No installation required — just HTTP requests or `npm install @paragraph-com/sdk`. Trigger when the user asks to integrate with, build on, or call the Paragraph API.
+description: Use the Paragraph REST API or TypeScript SDK to manage posts, drafted content (X posts, LinkedIn posts, newsletters, X articles), the publishing schedule, agent runs, chat, publications, subscribers, and analytics on paragraph.com. No installation required — just HTTP requests or `npm install @paragraph-com/sdk`. Trigger when the user asks to integrate with, build on, or call the Paragraph API.
 license: MIT
 metadata:
   author: paragraph-com
-  version: "1.0"
+  version: "1.1"
 allowed-tools: Bash(curl:*) Bash(npm:*) Bash(npx:*) Read Write WebFetch
 ---
 
 # Paragraph API
 
-REST API and TypeScript SDK for [Paragraph](https://paragraph.com) — a web3 publishing and newsletter platform. Manage posts, publications, subscribers, and coins without installing any CLI tools.
+REST API and TypeScript SDK for [Paragraph](https://paragraph.com), which turns a company's work into articles, newsletters, and social posts. Manage posts, drafted content, the schedule, agent runs, publications, and subscribers without installing any CLI tools.
 
 For CLI or MCP access, see the **paragraph-cli** skill instead.
 
@@ -23,7 +23,7 @@ For CLI or MCP access, see the **paragraph-cli** skill instead.
 
 ## Authentication
 
-Generate an API key in your [publication settings](https://paragraph.com/settings/publication/#developer).
+Create an API key in the app at [app.paragraph.com](https://app.paragraph.com) under **Settings → API keys**. Each key belongs to one publication.
 
 Many read endpoints are public — no key needed. Write endpoints (create, update, delete posts, manage subscribers) require authentication.
 
@@ -51,7 +51,8 @@ const authedApi = new ParagraphAPI({ apiKey: "<api-key>" });
 - **Do not publish without explicit user approval.** Publishing sends content live and optionally emails subscribers.
 - **Default to draft.** Created posts are drafts unless `status: "published"` is set explicitly.
 - **Do not send custom emails without explicit user approval.** `api.emails.send` (and `POST /v1/emails/send`) delivers real email and can't be undone. Draft the subject and body first; use `dryRun: true` to preview filtering before a real send. On a `403`, surface "this publication isn't approved for custom email yet" and stop — do not retry.
-- **Drafted content never sends.** `api.content` (and `/v1/content`) only writes to the publication's library. Nothing is posted to X or LinkedIn, emailed, or scheduled — the writer sends it from the Paragraph app. Say so rather than implying a piece went out.
+- **Drafting never sends.** Creating or editing with `api.content` (and `/v1/content`) only writes to the publication's library, and agent runs only write drafts. Say so rather than implying a piece went out.
+- **Do not publish, approve, or launch without explicit user approval.** `api.content.publish`, the `api.schedule` approvals, and `api.agents.launchRun` count the same as approving in the app, and the pieces go out for real.
 - **Paginate with `cursor`.** Responses include `pagination.cursor` and `pagination.hasMore`.
 - **Respect rate limits.** If you get a `429`, back off and retry. Avoid tight loops between paginated requests.
 - **Check auth before writing.** Call `GET /v1/me` or `api.me.get()` to verify credentials are valid.
@@ -75,7 +76,7 @@ const newPost = await api.posts.create({
   title: "My Post",
   markdown: "# Hello World",
   subtitle: "A subtitle",
-  categories: ["web3", "defi"],
+  categories: ["launch", "product"],
 });
 
 // List your posts
@@ -140,12 +141,12 @@ await api.posts.sendTestEmail({ id: "<post-id>" });
 
 // Feed and tags
 const { items: feed } = await api.feed.get();
-const { items: tagged } = await api.posts.get({ tag: "web3" }, { limit: 10 });
+const { items: tagged } = await api.posts.get({ tag: "product" }, { limit: 10 });
 ```
 
 ### Content
 
-The publication's short-form library: X posts and threads, LinkedIn posts, one-off emails, and X Articles. Everything here is a draft — creating or editing a piece never posts, emails, or schedules it. Long-form Paragraph posts are a different resource; use `api.posts` for those.
+The publication's short-form library: X posts and threads, LinkedIn posts, one-off emails, and X articles. Creating or editing a piece never posts, emails, or schedules it; see [Publish and approve](#publish-and-approve) for that. Long-form Paragraph posts are a different resource; use `api.posts` for those.
 
 Kinds are `tweet`, `linkedin`, `newsletter`, and `x_article`. `body` takes the shape its kind uses, validated the same way the Paragraph app validates it. X and LinkedIn attachments still need the app. Newsletters accept either Markdown `body` or a complete rich `bodyJson` document, never both. Read a saved rich newsletter before editing and preserve its authoritative `bodyJson`; converting it to Markdown can lose formatting and media. The JSON document is an object, unlike the stringified `bodyJson` on the separate posts API. Creating or editing a draft does not approve delivery.
 
@@ -249,9 +250,9 @@ On update, send the complete saved document and subject/preheader, not a partial
 
 ### Content groups
 
-A group is one identity for a post and everything made out of it — the post, the X thread drawn from it, the LinkedIn version, the newsletter. It's what a writer sees as a single stacked row under Content in the Paragraph app.
+A group is one identity for a post and everything made out of it — the post, the X thread drawn from it, the LinkedIn version, the newsletter. It's what the team sees as a single stacked row under Content in the Paragraph app.
 
-**When repurposing a post, group what you draft with it.** Seed the group from the post, then pass the id as `bucketId` on every piece derived from it. Without it the writer gets unrelated drafts that don't know about each other.
+**When repurposing a post, group what you draft with it.** Seed the group from the post, then pass the id as `bucketId` on every piece derived from it. Without it the team gets unrelated drafts that don't know about each other.
 
 ```typescript
 const api = new ParagraphAPI({ apiKey: "<api-key>" });
@@ -339,60 +340,119 @@ const { count } = await api.subscribers.getCount({ id: "<publication-id>" });
 
 // Add
 await api.subscribers.create({ email: "user@example.com" });
-await api.subscribers.create({ wallet: "0x1234..." });
 
-// Remove (hard delete — irreversible). At least one of email or wallet
-// must be provided; if you pass both, they must resolve to the same user.
+// Remove by email (hard delete — irreversible).
 await api.subscribers.remove({ email: "user@example.com" });
-await api.subscribers.remove({ wallet: "0x1234..." });
 
 // Import CSV
 const file = new File([csvContent], "subscribers.csv", { type: "text/csv" });
 await api.subscribers.importCsv({ file });
 ```
 
-### Coins
+### Publish and approve
+
+Publishing or approving with an API key counts the same as approving in the app and runs the same checks. Only do it when the user asks.
 
 ```typescript
-const api = new ParagraphAPI();
+const api = new ParagraphAPI({ apiKey: "<api-key>" });
 
-// Get coin info (by ID or contract address)
-const coinById = await api.coins.get({ id: "<coin-id>" }).single();
-const coinByContract = await api.coins.get({ contractAddress: "0x1234..." }).single();
+// Post an X post, X article, or LinkedIn post now, or schedule an X or LinkedIn post up to 30 days out
+await api.content.publish({ id: "<content-id>" });
+await api.content.publish({ id: "<content-id>", publishAt: "2026-12-01T16:00:00Z" });
 
-// Popular coins
-const { items: popular } = await api.coins.get({ sortBy: "popular" });
+// The Calendar, from 30 days ago to 30 days ahead
+const { items: entries } = await api.schedule.list({ status: "needs_approval" });
 
-// Holders (by ID or contract address)
-const holders = await api.coins.getHolders({ id: "<coin-id>" }, { limit: 50 });
-
-// Price quote (amount in wei)
-const quote = await api.coins.getQuote({ id: "<coin-id>" }, 1000000000000000000n);
-
-// Buy and sell (requires a viem WalletClient and Account)
-const txHash = await api.coins.buy({
-  coin: { id: "<coin-id>" },
-  client: walletClient,
-  account,
-  amount: 1000000000000000000n, // 1 ETH in wei
+// Approve one at its proposed time, or send it now (also retries a failed send)
+const [entry] = entries;
+await api.schedule.approve({
+  id: entry.id,
+  entryRevision: entry.entryRevision,
+  contentRevision: entry.contentRevision ?? undefined,
 });
-const sellHash = await api.coins.sell({
-  coin: { id: "<coin-id>" },
-  client: walletClient,
-  account,
-  amount: 1000000000000000000n, // coin amount in wei
+await api.schedule.approve({ id: "<entry-id>", publishNow: true });
+
+// Approve everything waiting that isn't on hold, or only the entries you name
+const { approved, failed } = await api.schedule.approveAll();
+
+// Move, hold, or take one off the Calendar (the draft stays in the library)
+await api.schedule.reschedule({ id: "<entry-id>", publishAt: "2026-12-02T16:00:00Z" });
+await api.schedule.hold({ id: "<entry-id>", reason: "Waiting on legal" });
+await api.schedule.unschedule({ id: "<entry-id>" });
+
+// Post an X or LinkedIn entry from another connected account. It needs approval again
+const { accounts } = await api.schedule.accounts();
+await api.schedule.changeAccount({ id: "<entry-id>", accountId: accounts[0].accountId });
+```
+
+Pass `entryRevision` and `contentRevision` from the entry you showed the user, so the approval is refused if it changed after they reviewed it. A rescheduled entry, or one moved to another account, needs approval again.
+
+### Agents
+
+Agents, like the Changelog, turn a source into drafts: an article, social posts, and more. A run only writes drafts; nothing goes out until someone approves it.
+
+```typescript
+const api = new ParagraphAPI({ apiKey: "<api-key>" });
+
+// What can run, with each agent's field and deliverable keys
+const { agents } = await api.agents.list();
+const changelog = await api.agents.get({ key: "changelog" });
+
+// Set it up. Only what you send changes, and it changes what the team sees in the app
+await api.agents.configure({
+  key: "changelog",
+  repository: "acme/widget",
+  values: { audience: "Developers evaluating the SDK" },
+  deliverables: ["article", "x_post", "linkedin_post"],
+});
+
+// Start a run. Reusing an idempotencyKey returns the same run instead of starting another
+const { runId } = await api.agents.startRun({ key: "changelog", idempotencyKey: "release-2.4.0" });
+
+// Poll every 30 seconds or so; most runs finish in a few minutes
+const run = await api.agents.getRun({ key: "changelog", runId });
+const { runs } = await api.agents.listRuns({ key: "changelog", limit: 5 });
+
+// Once the user approves, launch the run's pieces together, the same as Launch in the app
+await api.agents.launchRun({ key: "changelog", runId, start: "launch_now", timeZone: "America/New_York" });
+```
+
+`status` is `queued` or `running`, then `succeeded`, `completed_with_warnings`, `failed`, `blocked`, or `canceled`. `start` on a launch is `suggested` (the default, each piece at its suggested time), `now`, `all_now`, `launch`, or `launch_now`.
+
+### Chat
+
+Ask Paragraph to do anything it does in the app's chat, such as making a cover or changing the brand. Chat can't publish, schedule, or send.
+
+```typescript
+const api = new ParagraphAPI({ apiKey: "<api-key>" });
+
+let turn = await api.chat.send({ message: "Make a cover for my latest post" });
+while (turn.status === "working") {
+  turn = await api.chat.get({ sessionId: turn.sessionId });
+}
+console.log(turn.reply, turn.files, turn.url);
+
+// Continue the same chat, or ask about a specific post
+await api.chat.send({ sessionId: turn.sessionId, message: "Make it darker" });
+await api.chat.send({ postId: "<post-id>", message: "Is this ready to publish?" });
+```
+
+`status` is `working` while Paragraph is still answering, `done`, or `failed` (send the message again). A `409` means the last message in that chat is still being answered.
+
+### Analytics
+
+Read-only SQL over the publication's analytics, scoped to the publication that owns the key. Don't add publication filters yourself.
+
+```typescript
+const api = new ParagraphAPI({ apiKey: "<api-key>" });
+
+const schema = await api.analytics.schema();
+const { rows } = await api.analytics.query({
+  sql: "SELECT title, total_views, open_rate FROM post_analytics_summary ORDER BY total_views DESC LIMIT 5",
 });
 ```
 
-### Search
-
-```typescript
-const api = new ParagraphAPI();
-
-const posts = await api.search.posts("ethereum");
-const blogs = await api.search.blogs("web3");
-const coins = await api.search.coins("test");
-```
+Prefer the pre-aggregated views (`post_analytics_summary`, `subscriber_engagement_scores`, `blog_subscriber_counts`). SELECT and WITH only, no semicolons, at most 10,000 rows, and a 30-second timeout.
 
 ### Users
 
@@ -400,7 +460,6 @@ const coins = await api.search.coins("test");
 const api = new ParagraphAPI();
 
 const userById = await api.users.get({ id: "<user-id>" }).single();
-const userByWallet = await api.users.get({ wallet: "0x1234..." }).single();
 ```
 
 ### Me
@@ -416,7 +475,7 @@ Send a one-off markdown email from your publication to a specific recipient list
 
 **Use this for:**
 - **Targeted segment sends** — "email everyone who opened my last post", "follow-up to my 50 most engaged subscribers", "reach out to this curated list of 20 readers". Build the segment via `api.analytics.query` or `api.subscribers.get`.
-- **Self-notifications to the writer** — "email me when I hit 1,000 subscribers", "weekly analytics digest". Pair with `api.me.get()` if you need to look up the writer's email.
+- **Notifications to the team** — "email me when we hit 1,000 subscribers", "weekly analytics digest".
 - **Outreach to non-subscriber addresses** — a CSV of conference contacts, a press list, an intro to friends-of-friends. Recipients can come from anywhere; they don't have to be in `api.subscribers.get()`. (Anyone who previously unsubscribed will still come back as `suppressed`.)
 - **Re-engagement of inactive subscribers** — "email everyone who hasn't opened in 90 days." Identify the segment via `api.analytics.query` against `subscriber_engagement_scores` or `newsletter_metrics`.
 - **Draft review to a few collaborators** — "send this draft pitch to my 3 co-authors for feedback." Use this when you need to email people other than the publication owner; `api.posts.sendTestEmail` only goes to the owner.
@@ -476,6 +535,16 @@ if (status.apiKey) {
 await api.auth.deleteSession(session.sessionId);
 ```
 
+The same flow over REST:
+
+```bash
+curl -X POST https://public.api.paragraph.com/api/v1/api/auth/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"deviceName": "my-app"}'
+curl https://public.api.paragraph.com/api/v1/api/auth/sessions/<session-id>
+curl -X DELETE https://public.api.paragraph.com/api/v1/api/auth/sessions/<session-id>
+```
+
 ### Pagination
 
 All list methods return `{ items, pagination }`. Paginate with the cursor:
@@ -505,14 +574,14 @@ curl https://public.api.paragraph.com/api/v1/posts?status=draft&limit=20 \
 # Get post by ID
 curl https://public.api.paragraph.com/api/v1/posts/<post-id>
 
-# Get post by slug
-curl https://public.api.paragraph.com/api/v1/posts/slug/<slug>
-
 # Get posts from a publication
 curl https://public.api.paragraph.com/api/v1/publications/<publication-id>/posts?limit=10&includeContent=true
 
 # Get post by publication slug + post slug
 curl https://public.api.paragraph.com/api/v1/publications/slug/<pub-slug>/posts/slug/<post-slug>
+
+# Get post by publication ID + post slug
+curl https://public.api.paragraph.com/api/v1/publications/<publication-id>/posts/slug/<post-slug>
 
 # Create a draft (requires auth)
 curl -X POST https://public.api.paragraph.com/api/v1/posts \
@@ -584,12 +653,12 @@ curl -X POST https://public.api.paragraph.com/api/v1/posts/<post-id>/test-email 
 curl https://public.api.paragraph.com/api/v1/posts/feed?limit=10
 
 # Posts by tag
-curl https://public.api.paragraph.com/api/v1/posts/tag/web3?limit=20
+curl "https://public.api.paragraph.com/api/v1/posts/tag/<tag>?limit=20"
 ```
 
 ### Content
 
-Drafted X posts, LinkedIn posts, one-off emails, and X Articles. All six endpoints require auth; the API key identifies the publication. Nothing here is sent — the writer sends it from the Paragraph app.
+Drafted X posts, LinkedIn posts, one-off emails, and X articles. Every content endpoint requires auth; the API key identifies the publication. Creating or editing a piece never sends it; see [Publish and approve](#publish-and-approve-1).
 
 ```bash
 # Draft an X thread (requires auth)
@@ -660,7 +729,7 @@ Unknown fields are rejected rather than ignored, so a misspelled key comes back 
 
 ### Content groups
 
-A group is one identity for a post and everything made out of it. Seed it from the post, then pass the id as `bucketId` on everything drafted from that post, so the writer sees one stacked row under Content instead of unrelated drafts.
+A group is one identity for a post and everything made out of it. Seed it from the post, then pass the id as `bucketId` on everything drafted from that post, so the team sees one stacked row under Content instead of unrelated drafts.
 
 ```bash
 # Get or create a post's group. Safe to repeat: the same id comes back. (requires auth)
@@ -741,8 +810,7 @@ curl -X POST https://public.api.paragraph.com/api/v1/subscribers \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com"}'
 
-# Remove (requires auth — hard delete, irreversible). Pass email or wallet
-# (or both — both must resolve to the same user).
+# Remove by email (requires auth — hard delete, irreversible).
 curl -X DELETE https://public.api.paragraph.com/api/v1/subscribers \
   -H "Authorization: Bearer <api-key>" \
   -H "Content-Type: application/json" \
@@ -754,44 +822,134 @@ curl -X POST https://public.api.paragraph.com/api/v1/subscribers/import \
   -F "file=@subscribers.csv"
 ```
 
-### Coins
+### Publish and approve
+
+Every call here counts the same as approving in the app. Only make one when the user asks.
 
 ```bash
-# Get coin by ID
-curl https://public.api.paragraph.com/api/v1/coins/<coin-id>
+# Post an X post, X article, or LinkedIn post now (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/content/<content-id>/publish \
+  -H "Authorization: Bearer <api-key>"
 
-# Get coin by contract address
-curl https://public.api.paragraph.com/api/v1/coins/contract/<address>
+# Schedule an X or LinkedIn post instead, up to 30 days out (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/content/<content-id>/publish \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"publishAt": "2026-12-01T16:00:00Z"}'
 
-# Popular coins
-curl https://public.api.paragraph.com/api/v1/coins/list/popular
+# The Calendar: needs_approval, scheduled, failed, or published (requires auth)
+curl "https://public.api.paragraph.com/api/v1/schedule?status=needs_approval" \
+  -H "Authorization: Bearer <api-key>"
 
-# Holders (by ID or contract address)
-curl https://public.api.paragraph.com/api/v1/coins/<coin-id>/holders?limit=50
-curl https://public.api.paragraph.com/api/v1/coins/contract/<address>/holders?limit=50
+# Approve one at its proposed time. Add "publishNow": true to send it now or retry a failed send (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/schedule/<entry-id>/approve \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"entryRevision": 3, "contentRevision": "<content-revision>"}'
 
-# Price quote (by ID or contract address, amount in wei)
-curl https://public.api.paragraph.com/api/v1/coins/quote/<coin-id>?amount=1000000000000000000
-curl https://public.api.paragraph.com/api/v1/coins/quote/contract/<address>?amount=1000000000000000000
+# Approve everything waiting that isn't on hold. Pass "entries" to approve only some (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/schedule/approve \
+  -H "Authorization: Bearer <api-key>"
 
-# Buy/sell args (for building onchain transactions)
-curl https://public.api.paragraph.com/api/v1/coins/buy/<coin-id>?amount=1000000000000000000&walletAddress=0x...
-curl https://public.api.paragraph.com/api/v1/coins/sell/<coin-id>?amount=1000000000000000000&walletAddress=0x...
+# Move one to a new time. It needs approval again (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/schedule/<entry-id>/reschedule \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"publishAt": "2026-12-02T16:00:00Z"}'
+
+# Pause one until it's approved by name (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/schedule/<entry-id>/hold \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "Waiting on legal"}'
+
+# Take one off the Calendar without sending it. The draft stays (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/schedule/<entry-id>/unschedule \
+  -H "Authorization: Bearer <api-key>"
+
+# Post an X or LinkedIn entry from another connected account (requires auth)
+curl https://public.api.paragraph.com/api/v1/schedule/accounts \
+  -H "Authorization: Bearer <api-key>"
+curl -X POST https://public.api.paragraph.com/api/v1/schedule/<entry-id>/account \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"accountId": "<account-id>"}'
 ```
 
-### Search
+`approve` returns the entry's new state. `approve` for several returns `approved` (entry ids) and `failed` (each with a `reason`), since one that can't go out doesn't hold back the rest.
+
+### Agents
+`<agent-key>` is the agent's `key` from the list, like `changelog`.
 
 ```bash
-curl https://public.api.paragraph.com/api/v1/discover/search?q=ethereum
-curl https://public.api.paragraph.com/api/v1/discover/blogs/search?q=web3
-curl https://public.api.paragraph.com/api/v1/discover/coins/search?q=test
+# What can run, with each agent's field and deliverable keys (requires auth)
+curl https://public.api.paragraph.com/api/v1/agents \
+  -H "Authorization: Bearer <api-key>"
+curl https://public.api.paragraph.com/api/v1/agents/<agent-key> \
+  -H "Authorization: Bearer <api-key>"
+
+# Set it up. Only what you send changes; "repository" replaces its GitHub source (requires auth)
+curl -X PUT https://public.api.paragraph.com/api/v1/agents/<agent-key> \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"repository": "acme/widget", "values": {"audience": "Developers evaluating the SDK"}, "deliverables": ["article", "x_post"]}'
+
+# Start a run. It returns as soon as the work is queued (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/agents/<agent-key>/runs \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"idempotencyKey": "release-2.4.0"}'
+
+# Check on it, or list recent runs (requires auth)
+curl https://public.api.paragraph.com/api/v1/agents/<agent-key>/runs/<run-id> \
+  -H "Authorization: Bearer <api-key>"
+curl "https://public.api.paragraph.com/api/v1/agents/<agent-key>/runs?limit=5" \
+  -H "Authorization: Bearer <api-key>"
+
+# Launch its pieces together once the user approves (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/agents/<agent-key>/runs/<run-id>/launch \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"start": "launch_now", "timeZone": "America/New_York"}'
+```
+
+A launch with no `entries` approves every piece of the run that's waiting and isn't on hold. Pass `entries` (ids from `GET /v1/schedule`) to launch only some. `/v1/playbooks` is a deprecated alias of `/v1/agents`.
+
+### Chat
+
+```bash
+# Ask, and get the reply (waits up to about 45 seconds) (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/chat \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Make a cover for my latest post"}'
+# -> {"sessionId": "...", "status": "working" | "done" | "failed", "reply": "...", "files": [...], "url": "..."}
+
+# While status is "working", check back for the rest of the reply (requires auth)
+curl https://public.api.paragraph.com/api/v1/chat/<session-id> \
+  -H "Authorization: Bearer <api-key>"
+```
+
+Send `sessionId` to continue a chat, and `postId` for a chat about one post.
+
+### Analytics
+
+```bash
+# Tables and columns (requires auth)
+curl https://public.api.paragraph.com/api/v1/analytics/schema \
+  -H "Authorization: Bearer <api-key>"
+
+# Run a read-only query (requires auth)
+curl -X POST https://public.api.paragraph.com/api/v1/analytics/query \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "SELECT title, total_views FROM post_analytics_summary ORDER BY total_views DESC LIMIT 5"}'
 ```
 
 ### Users
 
 ```bash
 curl https://public.api.paragraph.com/api/v1/users/<user-id>
-curl https://public.api.paragraph.com/api/v1/users/wallet/<wallet-address>
 ```
 
 ### Me
@@ -933,7 +1091,5 @@ do {
 
 ## Links
 
-- [API reference & playground](https://paragraph.com/docs/api-reference/)
+- [API reference](https://docs.paragraph.com/developers/api-reference)
 - [SDK on npm](https://www.npmjs.com/package/@paragraph-com/sdk)
-- [SDK on GitHub](https://github.com/paragraph-xyz/paragraph-sdk-js)
-- [OpenAPI spec](https://github.com/paragraph-xyz/paragraph-sdk-js/blob/main/openapi.json)

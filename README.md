@@ -1,12 +1,12 @@
 # Paragraph Agent Skills
 
-[Agent Skills](https://agentskills.io) for [Paragraph](https://paragraph.com) — lets AI agents manage posts, publications, subscribers, and coins.
+[Agent Skills](https://agentskills.io) for [Paragraph](https://paragraph.com). They teach AI agents to draft and publish posts, approve the schedule, run agents, and manage subscribers.
 
 ## Skills
 
 | Skill | Description | Install required |
 |-------|-------------|-----------------|
-| [paragraph-cli](paragraph-cli/SKILL.md) | CLI and MCP server | Yes (`npm install -g @paragraph-com/cli`) |
+| [paragraph-cli](paragraph-cli/SKILL.md) | CLI and MCP server | The CLI (`npm install -g @paragraph-com/cli`); the hosted MCP server needs nothing |
 | [paragraph-api](paragraph-api/SKILL.md) | REST API and TypeScript SDK | No |
 
 ## Install
@@ -43,10 +43,12 @@ claude mcp add paragraph --transport http https://mcp.paragraph.com/mcp
 ## Links
 
 - [Paragraph](https://paragraph.com)
-- [API reference & playground](https://paragraph.com/docs/api-reference/)
+- [Developer docs](https://docs.paragraph.com/developers)
 - [CLI on npm](https://www.npmjs.com/package/@paragraph-com/cli)
 - [SDK on npm](https://www.npmjs.com/package/@paragraph-com/sdk)
 - [Agent Skills standard](https://agentskills.io)
+
+These skills are published from Paragraph's main repository, so changes made directly here are overwritten.
 
 ## License
 

@@ -1,17 +1,17 @@
 ---
 name: paragraph-cli
-description: Use the Paragraph CLI and MCP server to manage posts, drafted content (X posts, LinkedIn posts, newsletters, X Articles), publications, subscribers, and coins on paragraph.com. Trigger when the user asks to publish, create, update, or manage newsletter content on Paragraph via CLI or MCP.
+description: Use the Paragraph CLI and MCP server to manage posts, drafted content (X posts, LinkedIn posts, newsletters, X articles), the publishing schedule, agent runs, chat, publications, subscribers, and analytics on paragraph.com. Trigger when the user asks to draft, publish, approve, schedule, or manage content on Paragraph via CLI or MCP.
 license: MIT
-compatibility: Requires Node.js 18+ and npm. Install the CLI with `npm install -g @paragraph-com/cli`.
+compatibility: The MCP server needs no install. The CLI needs Node.js 18+ and npm; install it with `npm install -g @paragraph-com/cli`.
 metadata:
   author: paragraph-com
-  version: "1.0"
+  version: "1.1"
 allowed-tools: Bash(paragraph:*) Bash(echo:*) Bash(cat:*) Bash(jq:*) Read
 ---
 
 # Paragraph CLI
 
-CLI for [Paragraph](https://paragraph.com) — a web3 publishing and newsletter platform. Use it to manage posts, drafted content, publications, subscribers, and coins.
+CLI for [Paragraph](https://paragraph.com), which turns a company's work into articles, newsletters, and social posts. Use it to manage posts, drafted content, the schedule, agent runs, publications, and subscribers.
 
 For direct HTTP or SDK access without installing anything, see the **paragraph-api** skill instead.
 
@@ -39,9 +39,23 @@ claude mcp add paragraph -- npx @paragraph-com/mcp
 
 Local mode requires an API key via `PARAGRAPH_API_KEY` env var or `paragraph login` from the CLI.
 
-The MCP server exposes 29 tools (posts, content, publications, subscribers, coins, search, feed, users, me, analytics, emails) and shares authentication with the CLI. See [full docs](https://paragraph.com/docs/development/mcp).
+The MCP server shares authentication with the CLI. Its tools mirror the CLI commands below. See [full docs](https://docs.paragraph.com/developers/mcp).
 
-Notable tools added recently: `create-content` / `list-content` / `get-content` / `update-content` / `archive-content` / `restore-content` (drafted X posts, LinkedIn posts, newsletters, and X Articles — these draft only, they never send), `send-custom-email` (markdown email blast to a recipient list — requires publication approval), `update-publication` (settings, featured post, pinned posts, email-notification toggles), `remove-subscriber` (hard delete by email or wallet), `update-post` accepts `publishedAt` for backdating, and `update-post` accepts `imageUrl` (set/replace the cover image) and `clearImage` (remove the existing cover).
+| Area | Tools |
+|------|-------|
+| Posts | `create-post`, `list-posts`, `get-post`, `update-post` (also publishes, schedules, backdates with `publishedAt`, and sets or clears the cover), `delete-post`, `send-test-email`, `get-feed` |
+| Drafted content | `create-content`, `list-content`, `get-content`, `update-content`, `archive-content`, `restore-content` (these draft only, they never send) |
+| Content groups | `create-post-content-bucket`, `get-post-content-bucket`, `get-content-bucket`, `list-content-buckets` |
+| Publish and approve | `publish-content`, `list-schedule`, `approve-entry`, `approve-all-entries`, `reschedule-entry`, `hold-entry`, `unschedule-entry`, `change-entry-account`, `list-publishing-accounts` |
+| Agents | `list-agents`, `get-agent`, `configure-agent`, `start-agent-run`, `get-agent-run`, `list-agent-runs`, `launch-agent-run` |
+| Chat | `chat`, `get-chat-reply` |
+| Publications | `get-publication`, `update-publication`, `get-subscriber-count` |
+| Subscribers | `list-subscribers`, `add-subscriber`, `remove-subscriber` |
+| Analytics | `analytics-schema`, `analytics-query` |
+| Email | `send-custom-email` (requires publication approval) |
+| Account | `get-me`, `get-user` |
+
+Publishing, approving, and launching tools count the same as approving in the app. Only call them when the user asks.
 
 ## CLI Setup
 
@@ -51,10 +65,10 @@ Install globally:
 npm install -g @paragraph-com/cli
 ```
 
-Authenticate — login persists the key to `~/.paragraph/config.json`:
+Sign in. With a person at the keyboard, `paragraph login` opens the browser for them to approve access. Without one, such as in CI, pass the key. Login stores credentials in `~/.paragraph/config.json`:
 
 ```bash
-paragraph login --token <api-key>
+paragraph login
 echo "$PARAGRAPH_API_KEY" | paragraph login --with-token
 ```
 
@@ -74,11 +88,12 @@ Verify: `paragraph whoami --json`
 - **Use flags, not just positional args.** Every identifier accepts `--id` so you can chain commands.
 - **Pipe content via stdin** when creating or updating posts from files: `cat draft.md | paragraph post create --title "My Post"`
 - **Paginate with `--limit` and `--cursor`.** The JSON response includes `pagination.cursor` and `pagination.hasMore`.
-- **Do not use interactive login.** Use `--token` or `--with-token` for non-interactive auth.
+- **Without a person at the keyboard, don't use browser login.** Use `--with-token` or `PARAGRAPH_API_KEY` instead.
 - **Check auth before running commands.** Run `paragraph whoami --json` to verify credentials are valid.
 - **Do not publish without explicit user approval.** Publishing sends content live and optionally emails subscribers.
 - **Default to draft.** `post create` creates drafts. Only call `post publish` when the user asks.
-- **`content` commands never send.** They only write to the publication's library; the writer sends the piece from the Paragraph app. Don't tell the user something went out.
+- **Drafting never sends.** `content create` and `content update` only write to the publication's library, and agent runs only write drafts. Don't tell the user something went out.
+- **Do not publish, approve, or launch without explicit user approval.** `content publish`, `schedule approve`, `schedule retry`, and `agent run launch` count the same as approving in the app.
 - **Do not send custom emails without explicit user approval.** `paragraph email send` delivers real email and can't be undone. Draft the subject and body first; use `--dry-run` to preview filtering before a real send. On a `403`, surface "this publication isn't approved for custom email yet" and stop — do not retry.
 - **Respect rate limits.** If you get `RATE_LIMITED`, wait and retry. Avoid tight loops between paginated requests.
 
@@ -88,7 +103,7 @@ Verify: `paragraph whoami --json`
 
 ```bash
 # Create a draft
-paragraph post create --title "My Post" --file ./post.md --tags "web3,defi" --json
+paragraph post create --title "My Post" --file ./post.md --tags "launch,product" --json
 paragraph post create --title "My Post" --text "# Hello World" --subtitle "A subtitle" --json
 cat content.md | paragraph post create --title "My Post" --json
 
@@ -152,12 +167,12 @@ paragraph post test-email --id <post-id> --json
 
 # Browse
 paragraph post feed --limit 10 --json
-paragraph post by-tag --tag web3 --limit 20 --json
+paragraph post by-tag --tag product --limit 20 --json
 ```
 
 ### Content
 
-Drafted short-form content: X posts and threads, LinkedIn posts, one-off emails, and X Articles. These commands only draft — nothing is posted, emailed, or scheduled. Long-form posts are `paragraph post`.
+Drafted short-form content: X posts and threads, LinkedIn posts, one-off emails, and X articles. Creating and editing only drafts; `content publish` (below) is what sends. Long-form posts are `paragraph post`.
 
 `--kind` is `tweet`, `linkedin`, `newsletter`, or `x_article`, and the body flags follow the kind: `--tweet` (repeatable, one per tweet in a thread) for `tweet`, `--subject` and `--preheader` for `newsletter`, `--headline` and `--canonical-url` for `x_article`. The long text comes from `--text`, `--file`, or stdin. X and LinkedIn attachments still need the app. For a rich newsletter, use `--body-json-file <path>` with a complete editor document (or `-` for JSON on stdin), instead of Markdown `--text`/`--file`. Read the saved draft first and preserve its subject, preheader, formatting and media; a Markdown rewrite can lose them. Creating/editing never approves delivery.
 
@@ -193,13 +208,74 @@ paragraph content archive <id> --json
 paragraph content restore <id> --json
 ```
 
-A piece with a queued send is locked: editing its body is refused (the schedule has to be cancelled in the app), but renaming always works. `lockedReason` in the JSON says why, or is null when the piece is editable.
+A piece with a queued send is locked: editing its body is refused (unschedule it first), but renaming always works. `lockedReason` in the JSON says why, or is null when the piece is editable.
+
+### Publish and approve
+
+Each of these counts the same as approving in the app and runs the same checks. Only run them when the user asks.
+
+```bash
+# Post an X post, X article, or LinkedIn post now, or schedule an X or LinkedIn post up to 30 days out
+paragraph content publish <id> --json
+paragraph content publish <id> --at 2026-12-01T16:00:00Z --json
+
+# The Calendar, from 30 days ago to 30 days ahead
+paragraph schedule list --status needs_approval --json
+paragraph schedule list --status failed --json
+
+# Approve one at its proposed time, send it now, or approve everything waiting that isn't on hold
+paragraph schedule approve <entry-id> --json
+paragraph schedule approve <entry-id> --now --json
+paragraph schedule approve --all --json
+
+# Send a failed entry again now
+paragraph schedule retry <entry-id> --json
+
+# Move one (it needs approval again), pause one until it's approved by name, or take one off the Calendar
+paragraph schedule reschedule <entry-id> --at 2026-12-02T16:00:00Z --json
+paragraph schedule hold <entry-id> --reason "Waiting on legal" --json
+paragraph schedule unschedule <entry-id> --json
+
+# Post an X or LinkedIn entry from another connected account
+paragraph schedule accounts --json
+paragraph schedule account <entry-id> --account <account-id> --json
+```
+
+### Agents
+
+Agents, like the Changelog, turn a source into drafts: an article, social posts, and more. A run only writes drafts; nothing goes out until someone approves it.
+
+```bash
+paragraph agent list --json
+paragraph agent get changelog --json   # its field and deliverable keys
+
+# Changes only what you pass. --repository replaces its GitHub source; --deliverable (repeatable) replaces the list
+paragraph agent setup changelog --repository acme/widget --value audience="Developers evaluating the SDK" --json
+
+# Start a run, then poll it every 30 seconds or so
+paragraph agent run start changelog --instructions "Lead with the billing launch" --json
+paragraph agent run get changelog <run-id> --json
+paragraph agent run list changelog --limit 5 --json
+
+# Once the user approves, launch the run's pieces together (suggested|now|all_now|launch|launch_now)
+paragraph agent run launch changelog <run-id> --start launch_now --time-zone America/New_York --json
+```
+
+### Chat
+
+Ask Paragraph to do anything it does in the app's chat and print the reply. The chat also shows up in the app. Chat can't publish, schedule, or send.
+
+```bash
+paragraph chat "Make a cover for my latest post" --json
+paragraph chat --session <session-id> "Make it darker" --json
+paragraph chat --post <post-id> "Is this ready to publish?" --json
+```
 
 ### Content groups
 
-A group is one identity for a post and everything made out of it — the post, the thread drawn from it, the LinkedIn version, the newsletter. It's what the writer sees as a single stacked row under Content.
+A group is one identity for a post and everything made out of it — the post, the thread drawn from it, the LinkedIn version, the newsletter. It's what the team sees as a single stacked row under Content.
 
-**When repurposing a post, group what you draft with it**, or the writer gets unrelated drafts that don't know about each other.
+**When repurposing a post, group what you draft with it**, or the team gets unrelated drafts that don't know about each other.
 
 ```bash
 # Get or create a post's group. Safe to repeat: the same ID comes back.
@@ -250,41 +326,22 @@ paragraph publication update <publication-id> --email-notifications newSubscribe
 paragraph publication update <publication-id> --from-json ./settings.json --json
 ```
 
-### Search
-
-```bash
-paragraph search post --query "ethereum" --json
-paragraph search blog --query "web3" --json
-```
-
 ### Subscribers
 
 ```bash
 paragraph subscriber list --limit 100 --json
 paragraph subscriber count --publication <id> --json
 paragraph subscriber add --email user@example.com --json
-paragraph subscriber add --wallet 0x1234...abcd --json
 paragraph subscriber import --csv ./subscribers.csv --json
 
 # Remove (hard delete, irreversible — prompts for confirmation; use --yes to skip)
 paragraph subscriber remove --email user@example.com --yes --json
-paragraph subscriber remove --wallet 0x1234...abcd --yes --json
-```
-
-### Coins
-
-```bash
-paragraph coin get --id <id-or-address> --json
-paragraph coin popular --limit 10 --json
-paragraph coin search --query "ethereum" --json
-paragraph coin holders --id <id-or-address> --limit 50 --json
-paragraph coin quote --id <id-or-address> --amount <wei> --json
 ```
 
 ### Users
 
 ```bash
-paragraph user get --id <user-id-or-wallet> --json
+paragraph user get --id <user-id> --json
 ```
 
 ### Analytics
@@ -312,7 +369,7 @@ Send a one-off markdown email from your publication to a specific recipient list
 
 **Use this for:**
 - **Targeted segment sends** — "email everyone who opened my last post", "follow-up to my 50 most engaged subscribers", "reach out to this curated list of 20 readers". Build the segment via `paragraph analytics query` or `paragraph subscriber list`.
-- **Self-notifications to the writer** — "email me when I hit 1,000 subscribers", "weekly analytics digest". Use `paragraph whoami` to look up the writer's email if needed.
+- **Notifications to the team** — "email me when we hit 1,000 subscribers", "weekly analytics digest".
 - **Outreach to non-subscriber addresses** — a CSV of conference contacts, a press list, an intro to friends-of-friends. Recipients can come from anywhere; they don't have to be in `paragraph subscriber list`. (Anyone who previously unsubscribed will still come back as `suppressed`.)
 - **Re-engagement of inactive subscribers** — "email everyone who hasn't opened in 90 days." Identify the segment via `paragraph analytics query` against `subscriber_engagement_scores` or `newsletter_metrics`.
 - **Draft review to a few collaborators** — "send this draft pitch to my 3 co-authors for feedback." Use this when you need to email people other than the publication owner; `paragraph post test-email` only goes to the owner.
