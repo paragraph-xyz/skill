@@ -43,7 +43,7 @@ The MCP server shares authentication with the CLI. Its tools mirror the CLI comm
 
 | Area | Tools |
 |------|-------|
-| Posts | `create-post`, `list-posts`, `get-post`, `update-post` (also publishes, schedules, backdates with `publishedAt`, and sets or clears the cover), `delete-post`, `send-test-email`, `get-feed` |
+| Posts | `create-post`, `list-posts`, `get-post`, `update-post` (also publishes, schedules, backdates with `publishedAt`, sets or clears the cover, sends newsletter-only with `publishOnline: false`, and emails one segment with `communityId`), `delete-post`, `send-test-email`, `get-feed` |
 | Drafted content | `create-content`, `list-content`, `get-content`, `update-content`, `archive-content`, `restore-content` (these draft only, they never send) |
 | Content groups | `create-post-content-bucket`, `get-post-content-bucket`, `get-content-bucket`, `list-content-buckets` |
 | Publish and approve | `publish-content`, `list-schedule`, `approve-entry`, `approve-all-entries`, `reschedule-entry`, `hold-entry`, `unschedule-entry`, `change-entry-account`, `list-publishing-accounts` |
@@ -51,7 +51,7 @@ The MCP server shares authentication with the CLI. Its tools mirror the CLI comm
 | Chat | `chat`, `get-chat-reply` |
 | Publications | `get-publication`, `update-publication`, `get-subscriber-count` |
 | Subscribers | `list-subscribers`, `add-subscriber`, `remove-subscriber` |
-| Analytics | `analytics-schema`, `analytics-query` |
+| Analytics | `analytics-schema`, `analytics-query`, `analytics-search-ai` |
 | Email | `send-custom-email` (requires publication approval) |
 | Account | `get-me`, `get-user` |
 
@@ -138,6 +138,15 @@ paragraph post update --id <id-or-slug> --clear-image --json
 # Publish
 paragraph post publish --id <id-or-slug> --json
 paragraph post publish --id <id-or-slug> --newsletter --json
+
+# Email subscribers without putting the post on the website
+paragraph post publish --id <id-or-slug> --newsletter-only --json
+
+# Email one subscriber segment instead of everyone (ask for the segment id; never guess it)
+paragraph post publish --id <id-or-slug> --newsletter --segment <segment-id> --json
+
+# Set delivery ahead of a later send or schedule
+paragraph post update --id <id-or-slug> --newsletter-only --segment <segment-id> --json
 
 # Revert to draft
 paragraph post draft --id <id-or-slug> --json
@@ -363,6 +372,13 @@ echo "SELECT active_subscriber_count FROM blog_subscriber_counts" | paragraph an
 
 Prefer the pre-aggregated views (`post_analytics_summary`, `subscriber_engagement_scores`, `blog_subscriber_counts`) over raw tables — they're sub-second and cover most reporting questions. SELECT/WITH only, no semicolons, max 10,000 rows, 30s statement timeout.
 
+Search and AI visibility (visits from search engines and AI assistants like ChatGPT, AI crawler hits, and the pages crawlers fetch most) isn't in the SQL schema. Use `paragraph analytics search-ai` (MCP: `analytics-search-ai`). Crawlers are only tracked on a live custom website.
+
+```bash
+paragraph analytics search-ai --json
+paragraph analytics search-ai --period monthly --json   # daily (default), weekly, monthly, all
+```
+
 ### Custom emails
 
 Send a one-off markdown email from your publication to a specific recipient list you supply. Each recipient gets it individually with a mandatory unsubscribe footer.
@@ -402,7 +418,7 @@ The JSON response includes `accepted` (queued for delivery) and `skipped` — ea
 ```bash
 paragraph login --token <api-key>
 echo "<api-key>" | paragraph login --with-token
-paragraph whoami --json
+paragraph whoami --json   # also shows credits and emails used this billing cycle
 paragraph logout
 ```
 

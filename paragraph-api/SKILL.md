@@ -454,6 +454,15 @@ const { rows } = await api.analytics.query({
 
 Prefer the pre-aggregated views (`post_analytics_summary`, `subscriber_engagement_scores`, `blog_subscriber_counts`). SELECT and WITH only, no semicolons, at most 10,000 rows, and a 30-second timeout.
 
+Search and AI visibility isn't in the SQL schema. `api.analytics.searchAi()` returns visits from search engines and AI assistants (ChatGPT, Perplexity, ...), AI crawler hits, and the pages crawlers fetch most. Crawlers are only tracked on a live custom website (`crawlerTrackingAvailable`).
+
+```typescript
+const report = await api.analytics.searchAi({ period: "weekly" }); // daily (default), weekly, monthly, all
+console.log(report.summary.aiVisits, report.summary.crawlerHits, report.crawlers);
+```
+
+`api.me.get()` returns the plan and `usage`: credits used this billing cycle against the limit, and emails sent against the plan's monthly allowance (`usage.emails` is omitted when the plan doesn't limit emails).
+
 ### Users
 
 ```typescript
@@ -944,6 +953,10 @@ curl -X POST https://public.api.paragraph.com/api/v1/analytics/query \
   -H "Authorization: Bearer <api-key>" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SELECT title, total_views FROM post_analytics_summary ORDER BY total_views DESC LIMIT 5"}'
+
+# Search and AI visibility: search and AI-referred visits, AI crawler hits (requires auth)
+curl "https://public.api.paragraph.com/api/v1/analytics/search-ai?period=weekly" \
+  -H "Authorization: Bearer <api-key>"
 ```
 
 ### Users
@@ -955,6 +968,7 @@ curl https://public.api.paragraph.com/api/v1/users/<user-id>
 ### Me
 
 ```bash
+# The key's publication, its plan, and credits and emails used this billing cycle
 curl https://public.api.paragraph.com/api/v1/me \
   -H "Authorization: Bearer <api-key>"
 ```
