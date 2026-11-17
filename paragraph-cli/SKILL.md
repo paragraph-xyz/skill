@@ -112,6 +112,7 @@ paragraph post list --json
 paragraph post list --status draft --limit 20 --json
 paragraph post list --status scheduled --json
 paragraph post list --publication <slug-or-id> --json
+paragraph post list --publication <slug-or-id> --tag guides --json
 
 # Get (by ID, URL, or @pub/slug)
 paragraph post get --id <post-id> --json

@@ -586,6 +586,9 @@ curl https://public.api.paragraph.com/api/v1/posts/<post-id>
 # Get posts from a publication
 curl https://public.api.paragraph.com/api/v1/publications/<publication-id>/posts?limit=10&includeContent=true
 
+# Get a publication's posts with one tag (for a tab or section on your site)
+curl "https://public.api.paragraph.com/api/v1/publications/<publication-id>/posts?category=guides"
+
 # Get post by publication slug + post slug
 curl https://public.api.paragraph.com/api/v1/publications/slug/<pub-slug>/posts/slug/<post-slug>
 
@@ -661,7 +664,7 @@ curl -X POST https://public.api.paragraph.com/api/v1/posts/<post-id>/test-email 
 # Feed
 curl https://public.api.paragraph.com/api/v1/posts/feed?limit=10
 
-# Posts by tag
+# Posts by tag, across every publication
 curl "https://public.api.paragraph.com/api/v1/posts/tag/<tag>?limit=20"
 ```
 
