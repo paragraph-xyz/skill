@@ -8,6 +8,7 @@
 |-------|-------------|-----------------|
 | [paragraph-cli](paragraph-cli/SKILL.md) | CLI and MCP server | The CLI (`npm install -g @paragraph-com/cli`); the hosted MCP server needs nothing |
 | [paragraph-api](paragraph-api/SKILL.md) | REST API and TypeScript SDK | No |
+| [paragraph-publish-github](paragraph-publish-github/SKILL.md) | Publish an article to your own site as a GitHub pull request | git, the GitHub CLI, and the MCP server or CLI |
 
 ## Install
 
