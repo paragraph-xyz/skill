@@ -8,6 +8,7 @@
 |-------|-------------|-----------------|
 | [paragraph-cli](paragraph-cli/SKILL.md) | CLI and MCP server | The CLI (`npm install -g @paragraph-com/cli`); the hosted MCP server needs nothing |
 | [paragraph-api](paragraph-api/SKILL.md) | REST API and TypeScript SDK | No |
+| [paragraph-blog-proxy](paragraph-blog-proxy/SKILL.md) | Serve your blog at a path on your own site, like example.com/blog | No |
 | [paragraph-publish-github](paragraph-publish-github/SKILL.md) | Publish an article to your own site as a GitHub pull request | git, the GitHub CLI, and the MCP server or CLI |
 
 ## Install
@@ -23,6 +24,7 @@ Install a specific skill:
 ```bash
 npx skills add paragraph-xyz/skill --skill paragraph-api
 npx skills add paragraph-xyz/skill --skill paragraph-cli
+npx skills add paragraph-xyz/skill --skill paragraph-blog-proxy
 ```
 
 Or manually copy the `SKILL.md` file into your agent's skills directory:
